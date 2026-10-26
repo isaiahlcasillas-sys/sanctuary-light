@@ -4,3 +4,4 @@ export * from './channels';
 export * from './eosVersion';
 export * from './net';
 export * from './architecture';
+export * from './readiness';

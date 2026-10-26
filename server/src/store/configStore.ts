@@ -47,6 +47,8 @@ export function migrateConfig(raw: Partial<AppConfig>, defaults: AppConfig): { c
   return { config, notes };
 }
 
+const dailyName = (d: Date) => `daily-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.json`;
+
 export class ConfigStore {
   private config: AppConfig;
   private file: string;
@@ -117,9 +119,12 @@ export class ConfigStore {
    * retaining the last `keepDays`. Independent of the per-save backups, so a busy
    * editing session can never push out last week's known-good copy.
    */
+  hasDailySnapshot(now = new Date()): boolean {
+    return fs.existsSync(path.join(this.backupDir, dailyName(now)));
+  }
+
   dailySnapshot(now = new Date(), keepDays = 30): string | null {
-    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const name = `daily-${day}.json`;
+    const name = dailyName(now);
     const target = path.join(this.backupDir, name);
     let created: string | null = null;
     if (!fs.existsSync(target)) {

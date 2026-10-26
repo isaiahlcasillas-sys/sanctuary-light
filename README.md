@@ -78,8 +78,16 @@ Looks are labelled **Local look · preview only** (stored in Sanctuary Light) or
 
 ## Documentation
 
+**New to Sanctuary Light? Start with [`docs/START_HERE.md`](docs/START_HERE.md).**
+
 | Document | Contents |
 |---|---|
+| [`docs/START_HERE.md`](docs/START_HERE.md) | Hardware-testing roadmap for the Technical Arts Director |
+| [`docs/INSTALL_MAC.md`](docs/INSTALL_MAC.md) | Step-by-step Mac install, update, uninstall, restore, troubleshooting |
+| [`docs/ONSITE_CHECKLIST.md`](docs/ONSITE_CHECKLIST.md) | Gathering the real Ion patch, version, IPs, fixtures, SceneStation info |
+| [`docs/FIRST_DAY_TESTING.md`](docs/FIRST_DAY_TESTING.md) | SIM → MONITOR → one authorized live test |
+| [`docs/SCENESTATION_WORKSHEET.md`](docs/SCENESTATION_WORKSHEET.md) | House lights, console priority, gateways, fallback scenarios |
+| [`docs/SUNDAY_READINESS.md`](docs/SUNDAY_READINESS.md) | PINs, network security, connection recovery, go / no-go |
 | [`docs/MAC_DEPLOYMENT.md`](docs/MAC_DEPLOYMENT.md) | Sanctuary Mac setup, startup and recovery behaviour, backups |
 | [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md) | On-site Ion setup wizard and checks |
 | [`docs/SYSTEM_AUDIT.md`](docs/SYSTEM_AUDIT.md) | Physical audit questionnaire: Ion, nodes, SceneStation, DMX lines, failure tests |
@@ -118,6 +126,7 @@ Every command returns one of `sent`, `simulated`, `blocked` or `error`, and the 
 * Use a dedicated **OSC user** (*Settings → Connection*). Command-line commands then go to `/eos/user/<n>/...` and never type into the operator's command line on the Ion.
 * **Connecting requires a confirmed Eos version.** Ports and features are checked against it, so the app refuses TCP 3037 before Eos 3.1, for example. See [`docs/EOS_OSC.md`](docs/EOS_OSC.md).
 * **Local groups are never trusted as proof of what an Eos group contains.** "Group N" is sent only after the console has reported, this session, that the group exactly matches and contains no protected channel. Otherwise the explicit local channel list is sent. Preset looks are blocked until their group is verified, and macro looks are operator-only.
+* **Stale connections refuse commands.** If the Ion hasn't answered within the stale time, Live commands are refused, not queued, so nothing can be delivered late after a network blip. A TCP connection that goes silent is dropped and reopened automatically.
 * **GO/BACK target the configured cue list** (`/eos/cues/<list>/fire|stop`) on Eos 3.3+, where ETC documents it. Older versions fall back to the `go_0`/`stopback` keys, and the UI flags that these act on the master playback.
 * SceneStation and architectural zones are not in this app's patch. Keep it that way unless the Ion already controls them.
 * Saving layouts, patch, looks and cue labels writes local JSON only. **No setting in this app modifies the Ion show file.** Destructive operations (replace patch, restore, reset) ask for confirmation and back up first.

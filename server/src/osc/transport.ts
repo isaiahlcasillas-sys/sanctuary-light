@@ -21,6 +21,8 @@ export interface OscLink extends EventEmitter<TransportEvents> {
   open(): void;
   send(msg: OscMessage): void;
   close(): void;
+  /** Drop a connection that has stopped answering so it can be re-opened (TCP only). */
+  reset?(): void;
 }
 
 export interface UdpOptions { host: string; consolePort: number; localPort: number }
@@ -105,6 +107,11 @@ export class TcpLink extends EventEmitter<TransportEvents> implements OscLink {
     if (!this.socket || !this.isOpen) throw new Error('TCP connection is not open');
     const pkt = encodeMessage(msg);
     this.socket.write(this.opts.framing === 'slip' ? slipEncode(pkt) : lengthPrefixEncode(pkt));
+  }
+
+  reset() {
+    // destroy() (not end()): a console that vanished won't complete a graceful close.
+    this.socket?.destroy(new Error('console stopped responding'));
   }
 
   close() {

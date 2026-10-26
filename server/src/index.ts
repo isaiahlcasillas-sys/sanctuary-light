@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { AppConfig, ClientMessage, Role, ServerMessage } from '@sanctuary/shared';
+import { assessReadiness, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
 import { Auth } from './auth';
 import { parseSleepPrevention, preventSleep } from './platform';
 import { Controller } from './controller';
@@ -125,6 +125,17 @@ app.get('/api/patch/export', operatorOnly, (req, res) => {
   const fixtures = store.get().fixtures;
   if (req.query.format === 'json') { res.json({ fixtures }); return; }
   res.type('text/csv').send(exportCsv(fixtures));
+});
+
+/** Sunday-readiness checklist (read-only). */
+app.get('/api/readiness', operatorOnly, (_req, res) => {
+  res.json(assessReadiness({
+    config: store.get(),
+    defaultPinsInUse: auth.defaultPinsInUse,
+    boundHost: host,
+    consoleVersion: controller.status().connection.consoleVersion,
+    hasTodaysBackup: store.hasDailySnapshot(),
+  }));
 });
 
 /** This computer's IPv4 addresses, for the setup wizard's same-subnet check. Read-only. */

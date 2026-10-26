@@ -1,5 +1,5 @@
 import * as Tabs from '@radix-ui/react-tabs';
-import { Archive, BookOpen, Building2, Cable, Layers, ListOrdered, ScrollText, Shield, Sparkles, X, Boxes } from 'lucide-react';
+import { Archive, BookOpen, Building2, ClipboardCheck, Cable, Layers, ListOrdered, ScrollText, Shield, Sparkles, X, Boxes } from 'lucide-react';
 import { Modal } from '../ui';
 import { ConnectionSettings } from './ConnectionSettings';
 import { PatchSettings } from './PatchSettings';
@@ -11,6 +11,7 @@ import { BackupSettings } from './BackupSettings';
 import { LogView } from './LogView';
 import { OscReference } from './OscReference';
 import { ArchitectureSettings } from './ArchitectureSettings';
+import { ReadinessSettings } from './ReadinessSettings';
 
 const tabs = (onOpenWizard?: () => void) => [
   { id: 'connection', label: 'Connection', icon: Cable, el: <ConnectionSettings onOpenWizard={onOpenWizard} /> },
@@ -18,6 +19,7 @@ const tabs = (onOpenWizard?: () => void) => [
   { id: 'groups', label: 'Groups', icon: Layers, el: <GroupSettings /> },
   { id: 'looks', label: 'Looks', icon: Sparkles, el: <LookSettings /> },
   { id: 'cues', label: 'Cues & Subs', icon: ListOrdered, el: <CueSubSettings /> },
+  { id: 'readiness', label: 'Sunday readiness', icon: ClipboardCheck, el: <ReadinessSettings /> },
   { id: 'architecture', label: 'Architectural audit', icon: Building2, el: <ArchitectureSettings /> },
   { id: 'security', label: 'Safety & Security', icon: Shield, el: <SecuritySettings /> },
   { id: 'backup', label: 'Backup', icon: Archive, el: <BackupSettings /> },
