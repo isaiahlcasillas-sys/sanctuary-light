@@ -10,7 +10,7 @@ Goal: Sanctuary Light runs permanently on a Mac in the sanctuary, starts by itse
 | Server starts on macOS the way launchd starts it, comes up **offline**, serves the UI, writes a daily backup | ✅ Verified in CI | The "macOS deployment smoke test" step starts `server/src/index.ts` directly with Node, checks `/api/health` (`"mode":"offline"`, `"platform":"darwin-arm64"`), loads the page, and checks the backups folder |
 | The LaunchAgent plist is valid | ✅ Verified in CI | Rendered by `deploy/macos/launchagent.mjs`, checked with Apple's `plutil -lint` |
 | A restarted server never resumes Live and sends nothing | ✅ Unit-tested | `server/test/phase3.test.ts`, "Restart safety": a commissioned config, a "reboot", then 500 ms of silence at the fake console |
-| `install.sh` / `.app` launcher / `caffeinate` on a real Mac | ⚠️ Not yet run on hardware | The scripts are syntax-checked; run them once on the sanctuary Mac and record the result here |
+| `install.sh` / `.app` launcher / `caffeinate` on a real Mac | ⚠️ Not yet run on hardware | The installer runs in dry-run mode under macOS's bash 3.2 in CI. A full install needs the sanctuary Mac. |
 | Intel Macs | ⚠️ Not tested | Should work (Node and esbuild/rollup ship x64 binaries); CI covers Apple Silicon only |
 
 ## Recommended setup (Phase 3a: dependable launcher, no packaging)
@@ -31,8 +31,8 @@ Dock / Desktop ──► ~/Applications/Sanctuary Light.app
 ### Install (one time, by the lighting lead)
 
 1. Install **Node.js 22 LTS** (the macOS ARM64 installer from nodejs.org, or `brew install node@22`).
-2. Put the repository somewhere permanent, e.g. `~/SanctuaryLight` (`git clone` or download the release).
-3. Run `./deploy/macos/install.sh`. Add `--lan` only if tablets on the church network must reach the app. The installer:
+2. Put the repository somewhere permanent **in your home folder**, e.g. `~/SanctuaryLight`. **Not** Desktop, Documents, Downloads or iCloud Drive. Don't move it afterwards: the service remembers the path.
+3. Run `./deploy/macos/install.sh`. Add `--lan` only if tablets on the church network must reach the app, and `--kiosk` for a full-screen Chrome window. The installer:
    * runs `npm ci`, `npm run build` and `npm test`, and stops if anything fails;
    * writes and validates the LaunchAgent, then loads it for the current user (no administrator rights, no root);
    * creates **Sanctuary Light.app** in `~/Applications`. Drag it to the Dock.
@@ -53,6 +53,17 @@ Remove everything with `./deploy/macos/uninstall.sh`. It keeps your data.
 | FileVault | Your IT policy decides. With FileVault on, an automatic login after a power cut needs someone to type the password | Trade-off between unattended recovery and disk encryption |
 | Network | Wired Ethernet on the lighting network. Static IP or DHCP reservation | The Ion connection uses a fixed IP |
 | Time Machine | On, if an external disk is available | Second copy of `~/Library/Application Support/Sanctuary Light` |
+
+## Startup at login vs. after a power cut
+
+These are **two different things**, and only the first is handled by Sanctuary Light itself.
+
+| | What starts it | What must be true |
+|---|---|---|
+| **At login** | The LaunchAgent (`RunAtLoad`) starts the server as soon as the booth user account logs in. | The service is installed for **that** account. The app folder isn't in Desktop, Documents, Downloads or iCloud Drive (macOS privacy protection blocks background services there; the installer refuses those locations). |
+| **After a power cut** | Nothing in Sanctuary Light. The Mac must (1) power itself on and (2) log the booth account in automatically. Then the LaunchAgent starts as above. | (1) *System Settings → Energy → "Start up automatically after a power failure"* (Mac mini, Mac Studio and iMac; MacBooks don't have it). (2) *Users & Groups → Automatically log in as* the booth account. **FileVault disables automatic login**: with FileVault on, someone must type the password after every power cut, and until then nothing starts. |
+
+Either way the server comes up in **Offline Simulation** and sends nothing. Check both settings on the sanctuary Mac before relying on unattended recovery.
 
 ## Behaviour at startup and on failures
 

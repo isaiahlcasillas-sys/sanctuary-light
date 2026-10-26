@@ -2,7 +2,8 @@
 # What "Sanctuary Light.app" runs: make sure the service is up, then open the interface.
 # Never starts lighting output — the server always starts in Offline Simulation.
 PORT="${PORT:-4700}"
-URL="http://localhost:$PORT"
+# The server listens on 127.0.0.1 (IPv4) by default; use it directly rather than "localhost".
+URL="http://127.0.0.1:$PORT"
 LABEL="org.ltumc.sanctuary-light"
 
 healthy() { curl -fsS --max-time 2 "$URL/api/health" 2>/dev/null | grep -q '"app":"sanctuary-light"'; }

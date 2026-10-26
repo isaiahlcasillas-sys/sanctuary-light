@@ -3,6 +3,8 @@
 # (no Terminal). It only opens the interface; the background service does the work.
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+KIOSK=0
+[[ "${1:-}" == "--kiosk" ]] && KIOSK=1
 APP="$HOME/Applications/Sanctuary Light.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -23,7 +25,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 cat > "$APP/Contents/MacOS/launch" <<LAUNCH
 #!/bin/bash
-exec "$REPO/deploy/macos/open-sanctuary-light.sh"
+SANCTUARY_KIOSK=$KIOSK exec "$REPO/deploy/macos/open-sanctuary-light.sh"
 LAUNCH
 chmod +x "$APP/Contents/MacOS/launch" "$REPO/deploy/macos/open-sanctuary-light.sh"
 echo "Created $APP"
