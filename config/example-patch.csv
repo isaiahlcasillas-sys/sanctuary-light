@@ -1,0 +1,9 @@
+channel,label,profile,universe,address,area,protected,notes
+1,Stage PAR US 1,stagelight-par-rgbw,1,1,stage,no,EXAMPLE ONLY - replace with your Ion patch
+2,Stage PAR US 2,stagelight-par-rgbw,1,9,stage,no,
+9,COLORband 1,COLORband H9 USB,1,101,stage,no,profile may be matched by name
+20,Front 1,etc-source4wrd,2,1,front,no,
+21,Front 2,etc-source4wrd,2,2,front,no,
+31,House Pendant 1,fuze-pendant,3,1,house,no,
+55,Scenic Batten 1,chorus-line,1,301,scenic,no,
+61,Relay 1,relay,4,1,utility,yes,switches power - keep protected

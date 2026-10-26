@@ -1,0 +1,22 @@
+{
+  "name": "sanctuary-light",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightkey-inspired visual lighting controller for an ETC Ion / Eos console (OSC).",
+  "workspaces": ["shared", "server", "web"],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w web\"",
+    "build": "npm run build -w web",
+    "start": "npm run build && npm run start -w server",
+    "test": "vitest run",
+    "typecheck": "tsc -p shared && tsc -p server && tsc -p web",
+    "eos-sim": "tsx server/tools/fake-eos.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": { "node": ">=20.19" }
+}
