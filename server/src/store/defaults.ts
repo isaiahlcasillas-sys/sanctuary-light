@@ -5,6 +5,7 @@
  * Fixture types per channel, DMX addresses, Eos groups, cues and submasters are NOT
  * read from the real Ion. Replace via Settings → Patch (CSV/JSON import or console sync).
  */
+import { defaultArchitecture } from '@sanctuary/shared';
 import type {
   AppConfig, CommissioningRecord, Fixture, FixtureGroup, FixtureProfile, Look, StageElement,
 } from '@sanctuary/shared';
@@ -227,5 +228,6 @@ export function defaultConfig(): AppConfig {
       { sub: 4, label: 'Scenic', volunteerVisible: false, protected: false },
     ],
     stage: { width: 1200, height: 800, elements: DEFAULT_STAGE_ELEMENTS },
+    architecture: defaultArchitecture(),
   });
 }

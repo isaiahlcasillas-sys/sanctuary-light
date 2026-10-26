@@ -3,6 +3,7 @@ import type { Look, LookAction } from '@sanctuary/shared';
 import { useApp } from '../../state/store';
 import { LOOK_ICONS, actionLabel } from '../LooksGrid';
 import { SaveBar, useSection } from './useSection';
+import { previewFromStage } from '../../lib/looks';
 
 const ACTION_TYPES: { v: LookAction['type']; label: string }[] = [
   { v: 'none', label: 'Not mapped (preview only)' },
@@ -33,10 +34,7 @@ export function LookSettings() {
 
   /** Store what the stage currently shows as this look's simulated preview. */
   const capture = (l: Look) => {
-    const preview = config.groups.filter((g) => g.id !== 'grp-utility').map((g) => {
-      const st = levels?.levels[g.channels.find((c) => levels.levels[c]) ?? -1];
-      return { groupId: g.id, intensity: st?.intensity ?? 0, ...(st?.color ? { color: st.color } : {}), ...(st?.cct ? { cct: st.cct } : {}) };
-    });
+    const preview = previewFromStage(config, levels);
     update(l.id, { preview });
     useApp.getState().toast('info', `Captured the current preview into “${l.name}”. Save to keep it.`);
   };
@@ -44,6 +42,9 @@ export function LookSettings() {
   return (
     <div>
       <h4>Looks</h4>
+      <div className="card" role="note">
+        <strong>Two kinds of looks.</strong> <span className="badge sim">Local look</span> lives only in Sanctuary Light: firing it changes the on-screen preview and nothing on the Ion. <span className="badge confirmed">Ion</span> looks trigger a cue, preset, macro, submaster or snapshot that already exists in the Ion show file. Editing a look here never changes the show file. Record or update cues on the Ion itself.
+      </div>
       <p className="hint">Each look button can trigger one Eos action. These are proposed worship looks, not cues that exist on your Ion — map each one to a real cue, preset, macro or submaster after checking the show file. Eos presets apply to channels; they are not whole-stage scenes like Lightkey's.</p>
       {draft.map((l) => {
         const a = l.action;

@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
@@ -26,3 +25,23 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: macOS deployment smoke test
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          for f in deploy/macos/*.sh; do bash -n "$f"; done
+          node deploy/macos/launchagent.mjs --node "$(command -v node)" --repo "$PWD" > "$RUNNER_TEMP/agent.plist"
+          plutil -lint "$RUNNER_TEMP/agent.plist"
+          # Start the real server the way launchd would and check it comes up offline.
+          SANCTUARY_DATA_DIR="$RUNNER_TEMP/data" SANCTUARY_PREVENT_SLEEP=system NODE_ENV=production PORT=4799 \
+            node node_modules/tsx/dist/cli.mjs server/src/index.ts > "$RUNNER_TEMP/server.log" 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4799/api/health > "$RUNNER_TEMP/health.json" 2>/dev/null && break; sleep 1; done
+          cat "$RUNNER_TEMP/health.json"
+          grep -q '"mode":"offline"' "$RUNNER_TEMP/health.json"
+          grep -q '"platform":"darwin-arm64"' "$RUNNER_TEMP/health.json"
+          curl -fsS http://127.0.0.1:4799/ > "$RUNNER_TEMP/index.html"
+          grep -q '<div id="root">' "$RUNNER_TEMP/index.html"
+          kill "$SERVER_PID"
+          cat "$RUNNER_TEMP/server.log"
+          ls "$RUNNER_TEMP/data/backups" | grep -q '^daily-'

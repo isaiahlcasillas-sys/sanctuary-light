@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
+import { Building2, Eye, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
 import { MODE_INFO, type OperatingMode } from '@sanctuary/shared';
 import { logout, sendCommand, useApp } from '../state/store';
 import { ArmDialog } from './ArmDialog';
@@ -93,7 +93,8 @@ export function TopBar({ onOpenSettings, onOpenWizard }: { onOpenSettings(): voi
 
       <div className="mode-switch" role="radiogroup" aria-label="Interface">
         <button role="radio" aria-checked={uiMode === 'volunteer'} data-on={uiMode === 'volunteer'} data-mode="offline" onClick={() => setUiMode('volunteer')}><Users size={14} />Volunteer</button>
-        <button role="radio" aria-checked={uiMode === 'advanced'} data-on={uiMode === 'advanced'} data-mode="offline" onClick={goAdvanced}><Wrench size={14} />Operator</button>
+        <button role="radio" aria-checked={uiMode === 'advanced'} data-on={uiMode === 'advanced'} data-mode="offline" onClick={goAdvanced}><Wrench size={14} />Worship</button>
+        <button role="radio" aria-checked={uiMode === 'architecture'} data-on={uiMode === 'architecture'} data-mode="offline" onClick={() => setUiMode('architecture')}><Building2 size={14} />Architectural</button>
       </div>
 
       {role

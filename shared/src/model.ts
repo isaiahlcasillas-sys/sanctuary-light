@@ -1,3 +1,5 @@
+import type { ArchitecturalConfig } from './architecture';
+
 /**
  * Core data model for Sanctuary Light.
  *
@@ -213,6 +215,8 @@ export interface AppConfig {
   cueLists: CueListConfig[];
   submasters: SubmasterConfig[];
   stage: StageLayout;
+  /** Documentation of the SceneStation/DMX topology. Never used to send anything. */
+  architecture: ArchitecturalConfig;
 }
 
 export type OperatingMode = 'offline' | 'eos-monitor' | 'eos-live' | 'direct-dmx';

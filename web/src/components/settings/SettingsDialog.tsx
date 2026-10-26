@@ -1,5 +1,5 @@
 import * as Tabs from '@radix-ui/react-tabs';
-import { Archive, BookOpen, Cable, Layers, ListOrdered, ScrollText, Shield, Sparkles, X, Boxes } from 'lucide-react';
+import { Archive, BookOpen, Building2, Cable, Layers, ListOrdered, ScrollText, Shield, Sparkles, X, Boxes } from 'lucide-react';
 import { Modal } from '../ui';
 import { ConnectionSettings } from './ConnectionSettings';
 import { PatchSettings } from './PatchSettings';
@@ -10,6 +10,7 @@ import { SecuritySettings } from './SecuritySettings';
 import { BackupSettings } from './BackupSettings';
 import { LogView } from './LogView';
 import { OscReference } from './OscReference';
+import { ArchitectureSettings } from './ArchitectureSettings';
 
 const tabs = (onOpenWizard?: () => void) => [
   { id: 'connection', label: 'Connection', icon: Cable, el: <ConnectionSettings onOpenWizard={onOpenWizard} /> },
@@ -17,13 +18,14 @@ const tabs = (onOpenWizard?: () => void) => [
   { id: 'groups', label: 'Groups', icon: Layers, el: <GroupSettings /> },
   { id: 'looks', label: 'Looks', icon: Sparkles, el: <LookSettings /> },
   { id: 'cues', label: 'Cues & Subs', icon: ListOrdered, el: <CueSubSettings /> },
+  { id: 'architecture', label: 'Architectural audit', icon: Building2, el: <ArchitectureSettings /> },
   { id: 'security', label: 'Safety & Security', icon: Shield, el: <SecuritySettings /> },
   { id: 'backup', label: 'Backup', icon: Archive, el: <BackupSettings /> },
   { id: 'log', label: 'Traffic Log', icon: ScrollText, el: <LogView /> },
   { id: 'osc', label: 'OSC Reference', icon: BookOpen, el: <OscReference /> },
 ];
 
-export function SettingsDialog({ open, onOpenChange, onOpenWizard }: { open: boolean; onOpenChange(o: boolean): void; onOpenWizard?(): void }) {
+export function SettingsDialog({ open, onOpenChange, onOpenWizard, initialTab = 'connection' }: { open: boolean; onOpenChange(o: boolean): void; onOpenWizard?(): void; initialTab?: string }) {
   const TABS = tabs(onOpenWizard && (() => { onOpenChange(false); onOpenWizard(); }));
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Settings" wide>
@@ -33,7 +35,7 @@ export function SettingsDialog({ open, onOpenChange, onOpenWizard }: { open: boo
         <span className="spacer" />
         <button className="btn sm icon ghost" aria-label="Close settings" onClick={() => onOpenChange(false)}><X size={16} /></button>
       </div>
-      <Tabs.Root className="settings" defaultValue="connection" orientation="vertical">
+      <Tabs.Root className="settings" defaultValue={initialTab} key={initialTab} orientation="vertical">
         <Tabs.List className="settings-nav" aria-label="Settings sections">
           {TABS.map((t) => <Tabs.Trigger key={t.id} value={t.id}><t.icon size={15} />{t.label}</Tabs.Trigger>)}
         </Tabs.List>

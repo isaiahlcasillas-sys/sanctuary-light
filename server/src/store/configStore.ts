@@ -112,6 +112,25 @@ export class ConfigStore {
     return this.config;
   }
 
+  /**
+   * Once per calendar day, keep a copy of the configuration (daily-YYYY-MM-DD.json),
+   * retaining the last `keepDays`. Independent of the per-save backups, so a busy
+   * editing session can never push out last week's known-good copy.
+   */
+  dailySnapshot(now = new Date(), keepDays = 30): string | null {
+    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const name = `daily-${day}.json`;
+    const target = path.join(this.backupDir, name);
+    let created: string | null = null;
+    if (!fs.existsSync(target)) {
+      fs.writeFileSync(target, JSON.stringify(this.config, null, 2));
+      created = name;
+    }
+    const daily = fs.readdirSync(this.backupDir).filter((f) => /^daily-\d{4}-\d{2}-\d{2}\.json$/.test(f)).sort().reverse();
+    for (const old of daily.slice(keepDays)) fs.rmSync(path.join(this.backupDir, old));
+    return created;
+  }
+
   listBackups(): string[] {
     return fs.readdirSync(this.backupDir).filter((f) => f.endsWith('.json')).sort().reverse();
   }
@@ -120,8 +139,8 @@ export class ConfigStore {
     if (!fs.existsSync(this.file)) return;
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     fs.copyFileSync(this.file, path.join(this.backupDir, `config-${stamp}.json`));
-    const all = this.listBackups();
-    for (const old of all.slice(50)) fs.rmSync(path.join(this.backupDir, old));
+    const perSave = this.listBackups().filter((f) => f.startsWith('config-'));
+    for (const old of perSave.slice(50)) fs.rmSync(path.join(this.backupDir, old));
   }
 
   private writeFile(cfg: AppConfig) {
