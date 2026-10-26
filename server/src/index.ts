@@ -11,6 +11,7 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { AppConfig, ClientMessage, Role, ServerMessage } from '@sanctuary/shared';
 import { Auth } from './auth';
+import { parseSleepPrevention, preventSleep } from './platform';
 import { Controller } from './controller';
 import { EOS_COMMAND_TABLE } from './engine/eosCommands';
 import { ConfigStore } from './store/configStore';
@@ -53,9 +54,14 @@ function operatorOnly(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-const SECTIONS: SectionKey[] = ['settings', 'profiles', 'fixtures', 'groups', 'looks', 'cueLists', 'submasters', 'stage'];
+const SECTIONS: SectionKey[] = ['settings', 'profiles', 'fixtures', 'groups', 'looks', 'cueLists', 'submasters', 'stage', 'architecture'];
 
-app.get('/api/health', (_req, res) => { res.json({ ok: true, mode: controller.mode }); });
+const startedAt = Date.now();
+const appVersion = (JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { version: string }).version;
+// Used by the Mac launcher to tell whether the server is already running.
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, app: 'sanctuary-light', version: appVersion, mode: controller.mode, uptimeSeconds: Math.round((Date.now() - startedAt) / 1000), platform: `${process.platform}-${process.arch}` });
+});
 app.get('/api/config', (_req, res) => { res.json(store.get()); });
 app.get('/api/eos/commands', (_req, res) => { res.json(EOS_COMMAND_TABLE); });
 
@@ -99,6 +105,7 @@ app.post('/api/restore', operatorOnly, (req, res) => {
     broadcast({ t: 'config', config: next });
     controller.onConfigChanged(prev);
     controller.log('warn', 'Configuration restored from backup.');
+    for (const note of store.migrationNotes) controller.log('warn', `Restored backup updated: ${note}`);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });
@@ -216,6 +223,25 @@ const settings = store.get().settings;
 const host = process.env.HOST ?? (settings.safety.localhostOnly ? '127.0.0.1' : '0.0.0.0');
 const port = Number(process.env.PORT ?? 4700);
 
+server.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`Port ${port} is already in use — Sanctuary Light may already be running. Open http://localhost:${port}`);
+    // Exit 0 so the LaunchAgent (KeepAlive: SuccessfulExit=false) does not restart-loop.
+    process.exit(0);
+  }
+  throw e;
+});
+
+// Daily configuration snapshot (startup, then hourly check). Local files only.
+const snapshot = () => {
+  try { const made = store.dailySnapshot(); if (made) controller.log('info', `Daily configuration backup saved (${made}).`); }
+  catch (e) { controller.log('warn', `Daily backup failed: ${(e as Error).message}`); }
+};
+snapshot();
+setInterval(snapshot, 60 * 60 * 1000).unref();
+
+const caffeinate = preventSleep(parseSleepPrevention(process.env.SANCTUARY_PREVENT_SLEEP), (m) => controller.log('info', m));
+
 server.listen(port, host, () => {
   console.log(`\n  Sanctuary Light control server`);
   console.log(`  ➜  http://${host === '0.0.0.0' ? 'localhost' : host}:${port}   (mode: Offline Simulation)`);
@@ -226,6 +252,7 @@ server.listen(port, host, () => {
 function shutdown() {
   // Closing the app never sends a blackout or release to the console.
   controller.shutdown();
+  caffeinate?.kill();
   server.close();
   process.exit(0);
 }

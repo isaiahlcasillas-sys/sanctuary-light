@@ -13,7 +13,7 @@ The Ion stays the lighting engine and the fallback. Sanctuary Light sends it com
 |---|---|
 | ![Volunteer](docs/screenshots/volunteer.png) | ![Operator](docs/screenshots/operator.png) |
 
-> **Status: Phase 2.5 (reliability and integration pass) complete, tested only against a *fake* Eos console.**
+> **Status: Phase 3 (sanctuary Mac deployment, operating modes, SceneStation audit) on branch `phase-3-sanctuary`. Tested only against a *fake* Eos console**, with CI on Linux and Apple Silicon macOS.
 > The app has **not** been connected to the real Ion yet. On-site commissioning uses the built-in **Ion Setup Wizard**; see [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md). The sample patch, groups, looks and cue labels are placeholders built from the preliminary channel groupings. Nothing in them has been checked against the real show file.
 
 ---
@@ -30,6 +30,14 @@ npm start            # builds the UI and starts the server
 Open **http://localhost:4700**. The app always starts in **Offline Simulation**.
 
 Default PINs: **operator `1234`**, **volunteer `0000`**. Change them in *Settings → Safety & Security* before any live use. A badge appears until you do.
+
+### On the sanctuary Mac (no Terminal for volunteers)
+
+```bash
+./deploy/macos/install.sh       # one time: builds, tests, installs a login service + "Sanctuary Light.app"
+```
+
+The service starts at login, restarts after a crash, keeps the Mac awake, and makes a daily config backup. It **always starts in Offline Simulation**. See [`docs/MAC_DEPLOYMENT.md`](docs/MAC_DEPLOYMENT.md).
 
 ### Development (hot reload)
 
@@ -60,7 +68,27 @@ Then sign in as operator, open **Ion setup**, enter the version you started the 
 
 ---
 
-## Operating modes
+## Interface modes
+
+* **Volunteer**: big worship looks, GO/BACK, approved house lights.
+* **Worship**: full visual control through the Ion (operator PIN).
+* **Architectural Status**: how the SceneStation wall stations relate to the Ion, from the physical audit. **Read-only: Sanctuary Light does not control SceneStation.**
+
+Looks are labelled **Local look · preview only** (stored in Sanctuary Light) or **Ion · Cue 1/5** (plays show-file data). Nothing in Sanctuary Light writes to the Ion show file.
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/MAC_DEPLOYMENT.md`](docs/MAC_DEPLOYMENT.md) | Sanctuary Mac setup, startup and recovery behaviour, backups |
+| [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md) | On-site Ion setup wizard and checks |
+| [`docs/SYSTEM_AUDIT.md`](docs/SYSTEM_AUDIT.md) | Physical audit questionnaire: Ion, nodes, SceneStation, DMX lines, failure tests |
+| [`docs/SCENESTATION.md`](docs/SCENESTATION.md) | SceneStation research: documented behaviour vs. unknowns, integration options |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture, safety invariants, local vs show-file data |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Realistic implementation plan |
+| [`docs/EOS_OSC.md`](docs/EOS_OSC.md) | Eos OSC commands, ports by version, group safety |
+
+## Engine modes (SIM / MONITOR / LIVE)
 
 The modes are mutually exclusive. Only one output engine can exist at a time (`server/src/engine/`).
 

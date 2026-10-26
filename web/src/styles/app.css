@@ -344,3 +344,17 @@ label.field > span { font-weight: 600; letter-spacing: 0.02em; }
   .conn-pill .detail { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ───────────── architectural status ───────────── */
+.arch { padding: 14px; display: grid; gap: 14px; align-content: start; overflow: auto; min-height: 0; max-width: 1200px; width: 100%; margin: 0 auto; }
+.arch-hero { display: flex; gap: 16px; align-items: flex-start; padding: 18px; border-color: rgba(96, 165, 250, 0.4); background: linear-gradient(135deg, rgba(96, 165, 250, 0.08), var(--panel)); }
+.arch-hero h1 { margin: 0 0 6px; font-size: 20px; }
+.arch-hero p { margin: 0; color: var(--text-2); max-width: 760px; }
+.arch-guidance { font-size: 15px; line-height: 1.55; }
+.arch-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; margin-top: 10px; }
+.arch-card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.arch-card header { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.arch-card dl { display: grid; grid-template-columns: 130px 1fr; gap: 4px 10px; margin: 0; font-size: 13px; }
+.arch-card dt { color: var(--text-3); }
+.arch-card dd { margin: 0; }
+.arch-scenarios td { vertical-align: top; line-height: 1.45; }

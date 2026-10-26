@@ -92,6 +92,23 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
       if (!s || !(s.width > 0) || !(s.height > 0) || !Array.isArray(s.elements)) return 'Invalid stage layout';
       return null;
     }
+    case 'architecture': {
+      const a = value as AppConfig['architecture'];
+      if (!a || !Array.isArray(a.stations) || !Array.isArray(a.upstream)) return 'Invalid architecture record';
+      const roles = ['unknown', 'inline-backup', 'output-only', 'wireless-remote', 'separate-universe'];
+      const losses = ['unknown', 'hold-last-look', 'snap-to-current', 'fade-to-current', 'fade-to-black', 'activate-preset'];
+      for (const s of a.stations) {
+        if (!s.id || !s.name) return 'Every SceneStation needs a name';
+        if (!roles.includes(s.dmxRole)) return `${s.name}: unknown DMX role`;
+        if (!losses.includes(s.lossAction)) return `${s.name}: unknown loss action`;
+        if (s.lossAction === 'activate-preset' && !(isInt(s.lossPreset, 1) && (s.lossPreset as number) <= 64)) return `${s.name}: preset must be 1–64`;
+      }
+      for (const u of a.upstream) {
+        if (!u.id || !u.name) return 'Every DMX device needs a name';
+        if (!['unknown', 'holds-last-look', 'stops-output', 'fades-out'].includes(u.lossBehavior)) return `${u.name}: unknown loss behavior`;
+      }
+      return null;
+    }
     default:
       return `Unknown section ${String(key)}`;
   }

@@ -79,7 +79,9 @@ Local group membership is **not** treated as proof of what the real Eos group co
    * console membership **identical** to the local list, with **no protected channel** → `verified`, and "Group N" is used;
    * console group contains a protected channel → `protected`. "Group N" is never sent, and the app falls back to the explicit local channel list;
    * any difference, including unreadable entries such as channel parts → `mismatch`, and the explicit list is used;
-   * no reply, Eos 1.x, offline, or still reading → `unverified`, and the explicit list is used.
+   * no reply, Eos 1.x, offline, or still reading → `unverified`, and the explicit list is used;
+   * **UDP connection** → always `unverified`, because UDP can drop or reorder reply packets and a lost packet could hide a relay. Verification needs TCP, which is ordered and reliable;
+   * a list counts only when **every element** of ETC's `/list/<index>/<total>` reply has arrived. Each new reply discards older data, and packets that disagree make the group `mismatch`.
 2. **The fallback is always the explicit local channel list** (`Chan 1 Thru 19 + 30 + 79 + 80`). Each channel in it is in the local patch and has passed the protected-channel check, and a `Thru` run only spans channels that are all locally patched.
 3. **Groups that list channels missing from the local patch are refused**, not silently trimmed.
 4. **Preset looks** apply to "Group N", so they are **blocked in Monitor and Live** unless that group is verified.

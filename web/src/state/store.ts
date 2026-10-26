@@ -5,7 +5,8 @@ import type {
 
 export interface Toast { id: number; kind: 'sent' | 'simulated' | 'blocked' | 'error' | 'info'; message: string }
 
-type UiMode = 'volunteer' | 'advanced';
+/** volunteer = Volunteer Mode, advanced = Worship Mode (operator), architecture = Architectural Status. */
+export type UiMode = 'volunteer' | 'advanced' | 'architecture';
 
 interface AppState {
   socketState: 'connecting' | 'open' | 'closed';
