@@ -20,7 +20,7 @@ export type FeedbackEvent =
   | { kind: 'cueListEntry'; list: number; label: string }
   | { kind: 'groupInfo'; group: number; label: string }
   /** One packet of a group's channel list; `argIndex` is its position in the full argument list. */
-  | { kind: 'groupChannels'; group: number; argIndex: number; argCount: number; total: number | null; channels: number[]; unparsed: string[] }
+  | { kind: 'groupChannels'; group: number; argIndex: number; argCount: number; total: number | null; values: string[]; channels: number[]; unparsed: string[] }
   | { kind: 'notify'; target: string }
   | { kind: 'count'; what: 'patch' | 'cuelist' | 'cue' | 'group'; list?: number; count: number }
   | { kind: 'other' };
@@ -158,7 +158,7 @@ export function parseFeedback(msg: OscMessage, now = Date.now()): FeedbackEvent 
     // Positions 0 and 1 of the full argument list are <list index> and <UID>.
     const values = v.filter((_, i) => idx + i >= 2);
     const { numbers, unparsed } = parseNumberList(values);
-    return { kind: 'groupChannels', group: Number(m[1]), argIndex: idx, argCount: v.length, total: listTotal(a), channels: numbers, unparsed };
+    return { kind: 'groupChannels', group: Number(m[1]), argIndex: idx, argCount: v.length, total: listTotal(a), values: v.map((x) => String(x)), channels: numbers, unparsed };
   }
 
   return { kind: 'other' };

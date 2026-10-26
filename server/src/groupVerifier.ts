@@ -18,8 +18,10 @@ interface ConsoleGroup {
   gotChannels: boolean;
   /** Total elements in the channel-list reply (from /list/<index>/<total>). */
   total: number | null;
-  /** Element positions received so far; the list is trusted only when 0..total-1 all arrived. */
-  covered: Set<number>;
+  /** Element position → raw value received; the list is trusted only when 0..total-1 all arrived. */
+  covered: Map<number, string>;
+  /** Packets disagreed with each other (different totals, or different values at one position). */
+  conflict: boolean;
   lastPacketAt: number;
 }
 
@@ -27,6 +29,13 @@ interface ConsoleGroup {
 export const SETTLE_MS = 400;
 /** After this long without a reply, report the request as unanswered. */
 export const REPLY_TIMEOUT_MS = 4000;
+/** No real Eos group reply is this long; anything larger is treated as malformed. */
+export const MAX_LIST_ELEMENTS = 10_000;
+
+function complete(e: ConsoleGroup): boolean {
+  for (let i = 0; i < (e.total ?? 0); i++) if (!e.covered.has(i)) return false;
+  return true;
+}
 
 export class GroupVerifier {
   private groups = new Map<number, ConsoleGroup>();
@@ -52,22 +61,37 @@ export class GroupVerifier {
 
   private entry(group: number): ConsoleGroup {
     let e = this.groups.get(group);
-    if (!e) { e = { label: null, channels: new Set(), unparsed: [], gotInfo: false, gotChannels: false, total: null, covered: new Set(), lastPacketAt: 0 }; this.groups.set(group, e); }
+    if (!e) { e = { label: null, channels: new Set(), unparsed: [], gotInfo: false, gotChannels: false, total: null, covered: new Map(), conflict: false, lastPacketAt: 0 }; this.groups.set(group, e); }
     return e;
   }
 
+  /**
+   * The info packet starts each reply, so channel data collected before it belongs to an
+   * older request and is discarded. (Group verification is only used over TCP, where
+   * packets arrive in order.)
+   */
   onInfo(group: number, label: string, now = Date.now()) {
     const e = this.entry(group);
+    Object.assign(e, { channels: new Set(), unparsed: [], gotChannels: false, total: null, covered: new Map(), conflict: false });
     e.label = label;
     e.gotInfo = true;
     e.lastPacketAt = now;
   }
 
-  onChannels(group: number, channels: number[], unparsed: string[], now = Date.now(), packet?: { argIndex: number; argCount: number; total: number | null }) {
+  onChannels(group: number, channels: number[], unparsed: string[], now = Date.now(), packet?: { argIndex: number; argCount: number; total: number | null; values?: string[] }) {
     const e = this.entry(group);
     if (packet) {
-      if (packet.total != null) e.total = packet.total;
-      for (let i = 0; i < packet.argCount; i++) e.covered.add(packet.argIndex + i);
+      if (packet.total != null) {
+        if (e.total != null && e.total !== packet.total) e.conflict = true;
+        e.total = packet.total;
+      }
+      for (let i = 0; i < packet.argCount; i++) {
+        const pos = packet.argIndex + i;
+        const val = packet.values?.[i] ?? '';
+        const prev = e.covered.get(pos);
+        if (prev !== undefined && prev !== val) e.conflict = true;
+        e.covered.set(pos, val);
+      }
     }
     for (const c of channels) e.channels.add(c);
     e.unparsed.push(...unparsed);
@@ -75,7 +99,11 @@ export class GroupVerifier {
     e.lastPacketAt = now;
   }
 
-  evaluate(local: FixtureGroup[], fixtures: Fixture[], now = Date.now()): Record<string, GroupVerification> {
+  /**
+   * @param reliable false for UDP: packets can be lost, duplicated or reordered, so a
+   *   console group is never treated as verified and explicit channel lists are always used.
+   */
+  evaluate(local: FixtureGroup[], fixtures: Fixture[], now = Date.now(), reliable = true): Record<string, GroupVerification> {
     const out: Record<string, GroupVerification> = {};
     const byChannel = new Map(fixtures.map((f) => [f.channel, f]));
     for (const g of local) {
@@ -85,6 +113,10 @@ export class GroupVerifier {
         continue;
       }
       const n = g.eosGroup;
+      if (!reliable) {
+        out[g.id] = { ...base, state: 'unverified', detail: `Group verification needs a TCP connection (UDP can drop or reorder replies). Commands use the explicit channel list instead of Group ${n}.` };
+        continue;
+      }
       const asked = this.requestedAt.get(n);
       const e = this.groups.get(n);
       const unverified = (detail: string) => ({ ...base, state: 'unverified' as const, detail: `${detail} Commands use the explicit channel list instead of Group ${n}.` });
@@ -100,7 +132,11 @@ export class GroupVerifier {
       const consoleChannels = [...e.channels].sort((a, b) => a - b);
       const info = { ...base, consoleChannels, consoleLabel: e.label, checkedAt: e.lastPacketAt };
       if (!e.gotChannels) { out[g.id] = { ...info, state: 'unverified', detail: `Group ${n}'s channel list was not received. Commands use the explicit channel list.` }; continue; }
-      if (e.total == null || [...Array(e.total).keys()].some((i) => !e.covered.has(i))) {
+      if (e.conflict) {
+        out[g.id] = { ...info, state: 'mismatch', detail: `Group ${n}: the console's replies were inconsistent with each other. The explicit channel list is used; press Verify groups to re-read.` };
+        continue;
+      }
+      if (e.total == null || e.total > MAX_LIST_ELEMENTS || !complete(e)) {
         // A missing packet could hide a protected channel, so a partial list is never trusted.
         out[g.id] = { ...info, state: 'unverified', detail: `Group ${n}'s channel list arrived incomplete (${e.covered.size}/${e.total ?? '?'} elements). Commands use the explicit channel list.` };
         continue;

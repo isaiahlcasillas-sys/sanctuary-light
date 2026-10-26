@@ -105,6 +105,7 @@ app.post('/api/restore', operatorOnly, (req, res) => {
     broadcast({ t: 'config', config: next });
     controller.onConfigChanged(prev);
     controller.log('warn', 'Configuration restored from backup.');
+    for (const note of store.migrationNotes) controller.log('warn', `Restored backup updated: ${note}`);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });
@@ -225,7 +226,8 @@ const port = Number(process.env.PORT ?? 4700);
 server.on('error', (e: NodeJS.ErrnoException) => {
   if (e.code === 'EADDRINUSE') {
     console.error(`Port ${port} is already in use — Sanctuary Light may already be running. Open http://localhost:${port}`);
-    process.exit(2);
+    // Exit 0 so the LaunchAgent (KeepAlive: SuccessfulExit=false) does not restart-loop.
+    process.exit(0);
   }
   throw e;
 });

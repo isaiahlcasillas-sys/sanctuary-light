@@ -29,7 +29,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           set -euo pipefail
-          for f in deploy/macos/*.sh; do bash -n "$f"; done
+          for f in deploy/macos/*.sh; do /bin/bash -n "$f"; done
+          /bin/bash --version | head -1   # macOS ships bash 3.2; the installer must work with it
+          /bin/bash deploy/macos/install.sh --dry-run
+          /bin/bash deploy/macos/install.sh --dry-run --lan
           node deploy/macos/launchagent.mjs --node "$(command -v node)" --repo "$PWD" > "$RUNNER_TEMP/agent.plist"
           plutil -lint "$RUNNER_TEMP/agent.plist"
           # Start the real server the way launchd would and check it comes up offline.

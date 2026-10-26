@@ -194,7 +194,7 @@ export class Controller {
   // ───────────────────────────── group verification ─────────────────────────────
 
   private groupVerification(now = Date.now()): Record<string, GroupVerification> {
-    return this.groupVerifier.evaluate(this.cfg.groups, this.cfg.fixtures, now);
+    return this.groupVerifier.evaluate(this.cfg.groups, this.cfg.fixtures, now, this.cfg.settings.connection.transport !== 'udp');
   }
 
   /** Ask the console (read-only) for every Eos group referenced by a local group or preset look. */
@@ -214,7 +214,7 @@ export class Controller {
   private groupAddressable(groupId: string): GroupVerification | null {
     const g = this.cfg.groups.find((x) => x.id === groupId);
     if (!g || g.eosGroup == null) return null;
-    const v = this.groupVerifier.evaluate([g], this.cfg.fixtures)[groupId];
+    const v = this.groupVerifier.evaluate([g], this.cfg.fixtures, Date.now(), this.cfg.settings.connection.transport !== 'udp')[groupId];
     return v?.state === 'verified' ? v : null;
   }
 
@@ -252,8 +252,13 @@ export class Controller {
 
   private recordCommissioning(patch: Partial<CommissioningRecord>) {
     const s = this.cfg.settings;
-    const next = this.store.update('settings', { ...s, commissioning: { ...s.commissioning, ...patch } }, { backup: false });
-    this.broadcast({ t: 'config', config: next });
+    try {
+      const next = this.store.update('settings', { ...s, commissioning: { ...s.commissioning, ...patch } }, { backup: false });
+      this.broadcast({ t: 'config', config: next });
+    } catch (e) {
+      // The command itself already went out; never report it as failed because of bookkeeping.
+      this.log('warn', `Could not record commissioning result: ${(e as Error).message}`);
+    }
   }
 
   // ───────────────────────────── engine lifecycle ─────────────────────────────
@@ -507,7 +512,9 @@ export class Controller {
         }
         const v = clamp(cmd.value, 0, 100);
         return this.deliver(`${t.label} @ ${Math.round(v)}%`, () => b.intensity(t, v),
-          (src) => this.setLevels(t.channels, src, (p) => ({ ...p, intensity: v })), `int:${t.eosGroup ?? t.channels.join(',')}`);
+          // Key by the target the operator chose, not by how it is addressed, so a group whose
+          // verification changes mid-drag keeps one slot and the latest value always wins.
+          (src) => this.setLevels(t.channels, src, (p) => ({ ...p, intensity: v })), `int:${cmd.target.type === 'group' ? `g:${cmd.target.groupId}` : t.channels.join(',')}`);
       }
       case 'setColor': {
         const t = this.resolve(cmd.target);
@@ -558,8 +565,8 @@ export class Controller {
             case 'cue': return b.fireCue(a.list, a.cue);
             case 'preset': {
               // A preset is applied to "Group N", so the same verification rule applies.
-              const local = this.cfg.groups.find((g) => g.eosGroup === a.eosGroup);
-              if (this.mode !== 'offline' && (!local || !this.groupAddressable(local.id))) {
+              const verified = this.cfg.groups.some((g) => g.eosGroup === a.eosGroup && this.groupAddressable(g.id));
+              if (this.mode !== 'offline' && !verified) {
                 throw new Error(`Preset look needs Eos Group ${a.eosGroup} to be verified against a local group (Settings → Groups). Nothing was sent.`);
               }
               return b.preset(a.preset, a.eosGroup);

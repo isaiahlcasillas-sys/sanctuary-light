@@ -65,7 +65,7 @@ export function TopBar({ onOpenSettings, onOpenWizard }: { onOpenSettings(): voi
           <Tip key={m} label={<><strong>{MODE_INFO[m].label}</strong><br />{MODE_INFO[m].description}</>}>
             <button
               role="radio" aria-checked={mode === m} data-on={mode === m} data-mode={m}
-              disabled={!MODE_INFO[m].available || (uiMode === 'volunteer' && role !== 'operator' && mode !== m)}
+              disabled={!MODE_INFO[m].available || (role !== 'operator' && mode !== m)}
               onClick={() => chooseMode(m)}
             >{icon}{MODE_INFO[m].short}</button>
           </Tip>

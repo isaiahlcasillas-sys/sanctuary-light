@@ -8,6 +8,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { analyzeFailures, defaultArchitecture, type ArchitecturalConfig } from '@sanctuary/shared';
 import { Controller } from '../src/controller';
+import { GroupVerifier } from '../src/groupVerifier';
 import { parseSleepPrevention, preventSleep } from '../src/platform';
 import { ConfigStore } from '../src/store/configStore';
 import { defaultConfig } from '../src/store/defaults';
@@ -124,5 +125,75 @@ describe('Architectural status (SceneStation documentation only)', () => {
     const { architecture: _drop, ...old } = defaultConfig();
     fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(old));
     expect(new ConfigStore(dir).get().architecture.stations.length).toBe(1);
+  });
+});
+
+describe('Group verification hardening (review fixes)', () => {
+  const cfg = defaultConfig();
+  const front = { ...cfg.groups.find((g) => g.id === 'grp-front')!, eosGroup: 7 };
+  const T = 1_000_000;
+  const ev = (v: GroupVerifier, reliable = true) => v.evaluate([front], cfg.fixtures, T + 10_000, reliable)[front.id];
+  const pkt = (argIndex: number, values: string[], total: number) => ({ argIndex, argCount: values.length, total, values });
+
+  it('never verifies over UDP', () => {
+    const v = new GroupVerifier();
+    v.markRequested([7], T);
+    v.onInfo(7, 'Front', T);
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T, pkt(0, ['-1', 'uid', '20-29'], 3));
+    expect(ev(v, true).state).toBe('verified');
+    expect(ev(v, false).state).toBe('unverified');
+    expect(ev(v, false).detail).toMatch(/TCP/);
+  });
+
+  it('discards channel data from an older reply when a new reply starts', () => {
+    const v = new GroupVerifier();
+    v.markRequested([7], T);
+    // A late packet from a superseded request…
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T, pkt(2, ['20-29'], 3));
+    // …then the new reply: info, then only its first packet (relay packet not yet received).
+    v.onInfo(7, 'Front', T + 1);
+    v.onChannels(7, [], [], T + 2, pkt(0, ['-1', 'uid'], 4));
+    expect(ev(v).state).toBe('unverified');
+    expect(ev(v).detail).toMatch(/incomplete/);
+  });
+
+  it('treats disagreeing packets as a mismatch', () => {
+    const v = new GroupVerifier();
+    v.markRequested([7], T);
+    v.onInfo(7, 'Front', T);
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T, pkt(0, ['-1', 'uid', '20-29'], 3));
+    v.onChannels(7, [61], [], T, pkt(2, ['61'], 3));
+    expect(ev(v).state).toBe('mismatch');
+  });
+
+  it('rejects absurd list totals without allocating them', () => {
+    const v = new GroupVerifier();
+    v.markRequested([7], T);
+    v.onInfo(7, 'Front', T);
+    v.onChannels(7, [20], [], T, pkt(0, ['-1', 'uid', '20'], 4_294_967_295));
+    expect(() => ev(v)).not.toThrow();
+    expect(ev(v).state).toBe('unverified');
+  });
+});
+
+describe('Preset looks with duplicate Eos group numbers', () => {
+  it('allow the preset when any local group with that number is verified', async () => {
+    const eos = await startFakeEos({ slipPort: 0, lengthPort: 0, quiet: true });
+    const store = new ConfigStore(tmp());
+    const cfg = store.get();
+    Object.assign(cfg.settings.connection, { consoleIp: '127.0.0.1', eosVersion: '3.3.10', transport: 'tcp-1.1', tcpPort: eos.ports.slip! });
+    // First group with Eos Group 1 is stale (mismatch); the second matches the console (20-29).
+    cfg.groups.unshift({ id: 'grp-stale', name: 'Front (stale)', color: '#fff', channels: [20, 21], eosGroup: 1, volunteerVisible: false });
+    cfg.groups.find((g) => g.id === 'grp-front')!.eosGroup = 1;
+    cfg.looks.find((l) => l.id === 'look-wash')!.action = { type: 'preset', preset: 2, eosGroup: 1 };
+    store.replaceAll(cfg);
+    const c = new Controller(store, () => {}, () => false);
+    await c.execute({ kind: 'setMode', mode: 'eos-live', confirm: true }, 'operator');
+    const end = Date.now() + 4000;
+    while (c.status().groupVerification['grp-front'].state !== 'verified' && Date.now() < end) await wait(20);
+    expect(c.status().groupVerification['grp-stale'].state).toBe('mismatch');
+    expect((await c.execute({ kind: 'fireLook', lookId: 'look-wash' }, 'operator')).delivery).toBe('sent');
+    c.shutdown();
+    eos.close();
   });
 });
