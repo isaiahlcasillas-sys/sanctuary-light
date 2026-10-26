@@ -6,7 +6,7 @@
  * read from the real Ion. Replace via Settings → Patch (CSV/JSON import or console sync).
  */
 import type {
-  AppConfig, Fixture, FixtureGroup, FixtureProfile, Look, StageElement,
+  AppConfig, CommissioningRecord, Fixture, FixtureGroup, FixtureProfile, Look, StageElement,
 } from '@sanctuary/shared';
 
 export const GENERIC_PROFILE: FixtureProfile = {
@@ -175,24 +175,35 @@ export const DEFAULT_STAGE_ELEMENTS: StageElement[] = [
   el('rack', 'label', 'Utility Rack', 1110, 110, 70, 440),
 ];
 
+export function defaultCommissioning(): CommissioningRecord {
+  return { versionConfirmedAt: null, networkCheckedAt: null, monitorTest: null, liveTest: null, notes: '' };
+}
+
 export function defaultConfig(): AppConfig {
-  return {
+  // Deep copy: callers may edit the result, which must never change these module-level defaults.
+  return structuredClone({
     settings: {
       sanctuaryName: 'Lake Travis UMC — Sanctuary',
       masterCueList: 1,
+      commissioning: defaultCommissioning(),
       connection: {
         consoleIp: '',
-        transport: 'tcp-1.1',
+        // Most compatible TCP option (Eos 2.x and 3.x). The Setup Wizard switches to
+        // 3037 / SLIP on Eos 3.1+ once the version is confirmed.
+        transport: 'tcp-1.0',
         udpConsolePort: 8000,
         udpLocalPort: 8001,
-        tcpPort: 3037,
-        eosVersion: '2.x',
+        tcpPort: 3032,
+        // Unknown until the operator reads it from the console; connecting is refused until set.
+        eosVersion: '',
         oscUser: null,
         heartbeatSeconds: 3,
         staleSeconds: 10,
         maxCommandRateHz: 10,
+        goBackMethod: 'auto',
         goKey: 'go_0',
-        backKey: 'stop',
+        // "stopback" = PLAYBACK_STOP_BACK in ETC's key list ("stop" is a different key).
+        backKey: 'stopback',
       },
       safety: { requireConfirmToArm: true, protectedUnlockMinutes: 5, localhostOnly: true },
     },
@@ -216,5 +227,5 @@ export function defaultConfig(): AppConfig {
       { sub: 4, label: 'Scenic', volunteerVisible: false, protected: false },
     ],
     stage: { width: 1200, height: 800, elements: DEFAULT_STAGE_ELEMENTS },
-  };
+  });
 }

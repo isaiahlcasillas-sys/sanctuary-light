@@ -6,6 +6,8 @@ export interface EngineHooks {
   log(level: 'info' | 'warn' | 'error' | 'tx' | 'rx', message: string): void;
   onFeedback(ev: FeedbackEvent, raw: OscMessage): void;
   onConnectionChange(): void;
+  /** The link is open (TCP connected / UDP bound) and the initial queries were sent. */
+  onOpen?(): void;
 }
 
 export interface EngineConnection {

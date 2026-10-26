@@ -18,6 +18,7 @@ export function ControlPanel() {
   const levels = useApp((s) => s.levels);
   const selection = useApp((s) => s.selection);
   const lastResult = useApp((s) => s.lastResult);
+  const verification = useApp((s) => s.status?.groupVerification);
 
   const fixtures = useMemo(() => (config?.fixtures ?? []).filter((f) => selection.includes(f.channel)), [config, selection]);
   const caps = useMemo(() => {
@@ -68,7 +69,17 @@ export function ControlPanel() {
         <div className="sel-summary">
           <strong>{group ? group.name : fixtures.length === 1 ? fixtures[0].label : `${fixtures.length} fixtures`}</strong>
           <span className="badge">Chan {channelExpression(selection)}</span>
-          {group && <Tip label={group.eosGroup ? `Commands use Eos Group ${group.eosGroup}` : 'No Eos group number set — commands address channels directly'}><span className="badge">{group.eosGroup ? `Eos Group ${group.eosGroup}` : 'Channels'}</span></Tip>}
+          {group && (() => {
+            const v = verification?.[group.id];
+            const asGroup = v?.state === 'verified';
+            return (
+              <Tip label={v?.detail ?? 'Commands address channels directly'}>
+                <span className={`badge ${asGroup ? 'confirmed' : group.eosGroup ? 'warn' : ''}`} tabIndex={0}>
+                  {asGroup ? `Eos Group ${group.eosGroup} ✓` : group.eosGroup ? `Group ${group.eosGroup} unverified → channels` : 'Channels'}
+                </span>
+              </Tip>
+            );
+          })()}
           {anyProtected && <span className="badge err">Protected</span>}
         </div>
 

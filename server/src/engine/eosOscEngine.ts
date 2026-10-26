@@ -1,4 +1,4 @@
-import type { ConnectionSettings } from '@sanctuary/shared';
+import { checkConnectionCompat, eosCapabilities, type ConnectionSettings } from '@sanctuary/shared';
 import { formatMessage, type OscMessage } from '../osc/codec';
 import { TcpLink, UdpLink, type OscLink } from '../osc/transport';
 import { EosCommandBuilder, isReadOnlyAddress } from './eosCommands';
@@ -23,7 +23,7 @@ export class EosOscEngine implements OutputEngine {
     this.builder = new EosCommandBuilder(settings.oscUser);
   }
 
-  get supportsThirdPartyApi() { return this.settings.eosVersion !== '1.x'; }
+  get supportsThirdPartyApi() { return eosCapabilities(this.settings.eosVersion).getApi === 'yes'; }
 
   connection(): EngineConnection { return { ...this.conn }; }
 
@@ -35,12 +35,17 @@ export class EosOscEngine implements OutputEngine {
   start() {
     if (this.running) return;
     const s = this.settings;
+    if (!eosCapabilities(s.eosVersion).known) {
+      this.setConn({ state: 'error', detail: 'Eos version not identified — run the Ion Setup Wizard (Settings → Connection) first' });
+      return;
+    }
     if (!s.consoleIp) {
       this.setConn({ state: 'error', detail: 'No console IP address configured (Settings → Connection)' });
       return;
     }
-    if (s.transport !== 'udp' && s.eosVersion === '1.x') {
-      this.setConn({ state: 'error', detail: 'OSC over TCP needs Eos 2.0 or later. Use UDP for Eos 1.x.' });
+    const compat = checkConnectionCompat(s);
+    if (compat.errors.length) {
+      this.setConn({ state: 'error', detail: compat.errors[0] });
       return;
     }
     this.running = true;
@@ -63,6 +68,7 @@ export class EosOscEngine implements OutputEngine {
       });
       this.hooks.log('info', `OSC link open (${link.description})`);
       this.onOpen();
+      this.hooks.onOpen?.();
     });
     link.on('message', (m) => this.onMessage(m));
     link.on('error', (e) => {
@@ -95,7 +101,7 @@ export class EosOscEngine implements OutputEngine {
     if (first) this.setConn({ state: 'connected', detail: 'Receiving OSC from console' });
     if (!m.address.startsWith('/eos/out/ping')) this.hooks.log('rx', formatMessage(m));
     const ev = parseFeedback(m, now);
-    if (ev.kind === 'count') this.queueSyncFollowUp(ev);
+    if (ev.kind === 'count' && ev.what !== 'group') this.queueSyncFollowUp({ ...ev, what: ev.what });
     if (ev.kind === 'cueListEntry') this.queueSync([{ address: `/eos/get/cue/${ev.list}/count`, args: [] }]);
     this.hooks.onFeedback(ev, m);
   }
@@ -121,6 +127,12 @@ export class EosOscEngine implements OutputEngine {
     }
     this.conn.lastTxAt = Date.now();
     return sent;
+  }
+
+  /** Read group membership (read-only). Replies arrive as groupInfo / groupChannels feedback. */
+  requestGroups(groups: number[]) {
+    if (!this.supportsThirdPartyApi) throw new Error('Reading groups needs the Eos 2.x+ /eos/get API.');
+    this.queueSync(groups.map((g) => this.builder.getGroup(g)));
   }
 
   /** Read show data via the Eos 2.x third-party API. Read-only. */

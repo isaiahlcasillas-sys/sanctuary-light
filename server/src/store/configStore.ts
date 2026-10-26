@@ -9,6 +9,44 @@ import type { AppConfig } from '@sanctuary/shared';
 import { defaultConfig, GENERIC_PROFILE } from './defaults';
 import { validateSection, type SectionKey } from './validate';
 
+/**
+ * Bring an older config file up to date. Fills new sections/keys from defaults and
+ * corrects settings that earlier versions of this app defaulted to incorrectly.
+ */
+export function migrateConfig(raw: Partial<AppConfig>, defaults: AppConfig): { config: AppConfig; notes: string[] } {
+  const notes: string[] = [];
+  const conn = { ...defaults.settings.connection, ...raw.settings?.connection };
+  // v0.1 stored coarse guesses ("2.x") that were never read from the console.
+  if (['1.x', '2.x', '3.x'].includes(conn.eosVersion)) {
+    notes.push(`Eos version "${conn.eosVersion}" was a placeholder, not read from the console. It has been cleared — run the Ion Setup Wizard.`);
+    conn.eosVersion = '';
+  }
+  // v0.1 defaulted to TCP 3037, which only exists on Eos 3.1+.
+  if (conn.transport === 'tcp-1.1' && conn.tcpPort === 3037 && !raw.settings?.commissioning) {
+    notes.push('Connection reset from TCP 3037 (Eos 3.1+ only) to TCP 3032 / OSC 1.0 until the Eos version is confirmed.');
+    conn.transport = 'tcp-1.0';
+    conn.tcpPort = 3032;
+  }
+  // v0.1 defaulted BACK to the "stop" key; ETC's Stop/Back key is "stopback".
+  if (conn.backKey === 'stop') {
+    notes.push('BACK key changed from "stop" to "stopback" (ETC key PLAYBACK_STOP_BACK).');
+    conn.backKey = 'stopback';
+  }
+  const config = {
+    ...defaults,
+    ...raw,
+    settings: {
+      ...defaults.settings,
+      ...raw.settings,
+      connection: conn,
+      safety: { ...defaults.settings.safety, ...raw.settings?.safety },
+      commissioning: { ...defaults.settings.commissioning, ...raw.settings?.commissioning },
+    },
+  } as AppConfig;
+  if (!config.profiles.some((p) => p.id === 'generic')) config.profiles.unshift(GENERIC_PROFILE);
+  return { config, notes };
+}
+
 export class ConfigStore {
   private config: AppConfig;
   private file: string;
@@ -29,20 +67,17 @@ export class ConfigStore {
       return defaults;
     }
     const raw = JSON.parse(fs.readFileSync(this.file, 'utf8')) as Partial<AppConfig>;
-    // Fill sections missing from older files, and settings keys added in newer versions.
-    const merged: AppConfig = {
-      ...defaults,
-      ...raw,
-      settings: {
-        ...defaults.settings,
-        ...raw.settings,
-        connection: { ...defaults.settings.connection, ...raw.settings?.connection },
-        safety: { ...defaults.settings.safety, ...raw.settings?.safety },
-      },
-    } as AppConfig;
-    if (!merged.profiles.some((p) => p.id === 'generic')) merged.profiles.unshift(GENERIC_PROFILE);
-    return merged;
+    const { config, notes } = migrateConfig(raw, defaults);
+    this.migrationNotes = notes;
+    if (notes.length) {
+      this.backup();
+      this.writeFile(config);
+    }
+    return config;
   }
+
+  /** Human-readable notes about changes made while loading an older config file. */
+  migrationNotes: string[] = [];
 
   get(): AppConfig { return this.config; }
 
