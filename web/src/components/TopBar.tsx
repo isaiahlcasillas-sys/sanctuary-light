@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
+import { Eye, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
 import { MODE_INFO, type OperatingMode } from '@sanctuary/shared';
 import { logout, sendCommand, useApp } from '../state/store';
 import { ArmDialog } from './ArmDialog';
@@ -18,7 +18,7 @@ function ago(ms: number) {
   return s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
 }
 
-export function TopBar({ onOpenSettings }: { onOpenSettings(): void }) {
+export function TopBar({ onOpenSettings, onOpenWizard }: { onOpenSettings(): void; onOpenWizard(): void }) {
   const status = useApp((s) => s.status);
   const role = useApp((s) => s.role);
   const uiMode = useApp((s) => s.uiMode);
@@ -82,6 +82,9 @@ export function TopBar({ onOpenSettings }: { onOpenSettings(): void }) {
 
       <div className="spacer" />
 
+      {role === 'operator' && !config?.settings.commissioning.monitorTest?.ok && (
+        <Tip label="Identify the Eos version, check the network, test in Monitor mode, then one authorized single-channel test."><button className="btn sm primary" onClick={onOpenWizard}><Wand2 size={14} />Ion setup</button></Tip>
+      )}
       {role === 'operator' && (
         unlocked
           ? <Tip label="Relays & utility channels are unlocked. Click to lock now."><button className="btn sm danger" onClick={() => void sendCommand({ kind: 'lockProtected' })}><Unlock size={14} />Protected unlocked</button></Tip>
@@ -123,17 +126,22 @@ export function ModeBanner() {
   if (status.mode === 'offline') {
     return <div className="banner offline"><ZapOff size={15} />OFFLINE SIMULATION — every control only changes the on-screen preview. Nothing is sent to the Ion.</div>;
   }
-  if (c.stale || c.state !== 'connected') {
-    return (
-      <div className="banner stale" role="alert">
-        <ShieldAlert size={15} />
-        {c.state === 'connected' ? 'Console information is STALE — no reply recently. What you see may be out of date.' : `Not connected to the Ion: ${c.detail}`}
-        <span className="spacer" /><span>Use the Ion directly if needed.</span>
-      </div>
-    );
-  }
-  if (status.mode === 'eos-monitor') {
-    return <div className="banner monitor"><Eye size={15} />ION MONITOR (READ-ONLY) — showing console feedback. Lighting commands are blocked.{c.consoleVersion && <><span className="spacer" />Eos {c.consoleVersion}{c.showName ? ` · ${c.showName}` : ''}</>}</div>;
-  }
-  return <div className="banner live" role="status"><Zap size={15} />LIVE — controls send commands to the Ion and change real lights.<span className="spacer" />{c.consoleVersion ? `Eos ${c.consoleVersion}` : ''}{c.showName ? ` · ${c.showName}` : ''}</div>;
+  // The mode banner is always shown; connection and version warnings are added below it,
+  // never instead of it, so LIVE stays visible whatever else is wrong.
+  const modeBanner = status.mode === 'eos-monitor'
+    ? <div className="banner monitor"><Eye size={15} />ION MONITOR (READ-ONLY) — showing console feedback. Lighting commands are blocked.{c.consoleVersion && <><span className="spacer" />Eos {c.consoleVersion}{c.showName ? ` · ${c.showName}` : ''}</>}</div>
+    : <div className="banner live" role="status"><Zap size={15} />LIVE — controls send commands to the Ion and change real lights.<span className="spacer" />{c.consoleVersion ? `Eos ${c.consoleVersion}` : ''}{c.showName ? ` · ${c.showName}` : ''}</div>;
+  return (
+    <div>
+      {modeBanner}
+      {(c.stale || c.state !== 'connected') && (
+        <div className="banner stale" role="alert">
+          <ShieldAlert size={15} />
+          {c.state === 'connected' ? 'Console information is STALE — no reply recently. What you see may be out of date.' : `Not connected to the Ion: ${c.detail}`}
+          <span className="spacer" /><span>Use the Ion directly if needed.</span>
+        </div>
+      )}
+      {status.versionMismatch && <div className="banner stale" role="alert"><ShieldAlert size={15} />{status.versionMismatch}</div>}
+    </div>
+  );
 }

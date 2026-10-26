@@ -8,7 +8,8 @@
  *   5. reports back exactly which of those happened.
  */
 import {
-  MODE_INFO, clamp,
+  MODE_INFO, clamp, eosCapabilities, parseEosVersion,
+  type CommissioningRecord, type GoBackStatus, type GroupVerification,
   type AppConfig, type Capability, type Command, type CommandResult, type CueFeedback, type FeedbackCapability,
   type Fixture, type FixtureState, type LevelsSnapshot, type LogEntry, type OperatingMode, type ParamKey,
   type Role, type ServerMessage, type ServerStatus, type Target, type ValueSource,
@@ -20,6 +21,7 @@ import { DirectDmxEngine } from './engine/directDmxEngine';
 import { splitAbsoluteAddress, type FeedbackEvent } from './engine/eosFeedback';
 import type { EngineConnection } from './engine/types';
 import type { ConfigStore } from './store/configStore';
+import { GroupVerifier } from './groupVerifier';
 
 const PARAM_CAPABILITY: Record<ParamKey, Capability> = {
   red: 'rgb', green: 'rgb', blue: 'rgb', white: 'white', amber: 'amber', uv: 'uv',
@@ -88,6 +90,7 @@ export class Controller {
   private statusTimer: NodeJS.Timeout;
   private levelsDirty: NodeJS.Timeout | null = null;
   private seenCueFeedback = false;
+  private groupVerifier = new GroupVerifier();
   syncResult: SyncResult | null = null;
 
   constructor(private store: ConfigStore, private broadcast: (msg: ServerMessage) => void, private defaultPins: () => boolean) {
@@ -125,7 +128,7 @@ export class Controller {
   }
 
   private capabilities(): Record<string, FeedbackCapability> {
-    const v1 = this.cfg.settings.connection.eosVersion === '1.x';
+    const v1 = eosCapabilities(this.cfg.settings.connection.eosVersion).getApi !== 'yes';
     const offline = this.mode === 'offline';
     const conn = this.connection();
     const off: FeedbackCapability = { status: 'unavailable', note: 'Offline simulation — not connected to the console.' };
@@ -139,7 +142,7 @@ export class Controller {
       channelLevels: { status: 'unavailable', note: 'Eos OSC does not stream every channel level to third-party apps. Levels shown are simulated or commanded, never confirmed.' },
       submasterLevels: { status: 'unavailable', note: 'Submaster positions are not reported back over OSC by this app; the console may differ (e.g. if moved on the Ion).' },
       version: offline ? off : v1
-        ? { status: 'unavailable', note: 'Version query needs Eos 2.0+.' }
+        ? { status: 'unavailable', note: 'Version query needs the Eos 2.x+ /eos/get API (or set the Eos version in Settings).' }
         : this.consoleVersion ? { status: 'available', note: this.consoleVersion } : { status: 'unknown', note: conn.state === 'connected' ? 'Asked; no reply yet.' : 'Not connected.' },
       patchSync: v1
         ? { status: 'unavailable', note: 'Reading the patch over OSC needs Eos 2.0+. Use CSV/JSON import.' }
@@ -161,6 +164,9 @@ export class Controller {
       connection: { ...conn, stale, consoleVersion: this.consoleVersion, showName: this.showName },
       feedback: { ...this.feedback, capabilities: this.capabilities() },
       protectedUnlockedUntil: this.protectedUnlockedUntil,
+      groupVerification: this.groupVerification(now),
+      goBack: this.goBackStatus(),
+      versionMismatch: this.versionMismatch(),
       defaultPinsInUse: this.defaultPins(),
       serverTime: now,
     };
@@ -179,8 +185,75 @@ export class Controller {
       const mode = this.mode;
       this.stopEngine();
       this.startEngine(mode === 'eos-live');
+    } else if (JSON.stringify(prev.groups) !== JSON.stringify(this.cfg.groups)) {
+      this.requestGroupVerification();
     }
     this.pushStatus();
+  }
+
+  // ───────────────────────────── group verification ─────────────────────────────
+
+  private groupVerification(now = Date.now()): Record<string, GroupVerification> {
+    return this.groupVerifier.evaluate(this.cfg.groups, this.cfg.fixtures, now);
+  }
+
+  /** Ask the console (read-only) for every Eos group referenced by a local group or preset look. */
+  private requestGroupVerification(force = false) {
+    const eos = this.eos;
+    if (!eos || !eos.supportsThirdPartyApi) return;
+    if (force) this.groupVerifier.invalidate();
+    const wanted = this.cfg.groups.map((g) => g.eosGroup).filter((n): n is number => n != null);
+    const todo = this.groupVerifier.needsRequest(wanted);
+    if (!todo.length) return;
+    this.groupVerifier.markRequested(todo);
+    try { eos.requestGroups(todo); this.log('info', `Reading Eos group membership (read-only): ${todo.join(', ')}`); }
+    catch (e) { this.log('warn', `Could not read groups: ${(e as Error).message}`); }
+  }
+
+  /** "Group N" is only ever sent when the console has confirmed N matches and has no protected channels. */
+  private groupAddressable(groupId: string): GroupVerification | null {
+    const g = this.cfg.groups.find((x) => x.id === groupId);
+    if (!g || g.eosGroup == null) return null;
+    const v = this.groupVerifier.evaluate([g], this.cfg.fixtures)[groupId];
+    return v?.state === 'verified' ? v : null;
+  }
+
+  // ───────────────────────────── GO / BACK ─────────────────────────────
+
+  goBackStatus(list = this.cfg.settings.masterCueList): GoBackStatus {
+    const c = this.cfg.settings.connection;
+    const configured = eosCapabilities(c.eosVersion);
+    // If the console reports a version, use whichever of the two is more conservative.
+    const reported = this.consoleVersion ? eosCapabilities(this.consoleVersion) : null;
+    const documented = configured.cueListFireStop === 'yes' && (!reported?.known || reported.cueListFireStop === 'yes');
+    const method = c.goBackMethod === 'cue-list' ? 'cue-list' : c.goBackMethod === 'keys' ? 'keys' : documented ? 'cue-list' : 'keys';
+    if (method === 'cue-list') {
+      return {
+        method, list, goAddress: `/eos/cues/${list}/fire`, backAddress: `/eos/cues/${list}/stop`,
+        note: documented
+          ? `GO/BACK act on cue list ${list} directly.`
+          : `GO/BACK act on cue list ${list} directly (forced; not documented for Eos ${c.eosVersion || 'unknown'} — test first).`,
+      };
+    }
+    return {
+      method, list: null,
+      goAddress: `/eos/key/${c.goKey}`, backAddress: `/eos/key/${c.backKey}`,
+      note: `GO/BACK press the console's ${c.goKey}/${c.backKey} keys, which act on whatever cue list is on the master playback — not necessarily list ${list}.`,
+    };
+  }
+
+  private versionMismatch(): string | null {
+    const configured = parseEosVersion(this.cfg.settings.connection.eosVersion);
+    const reported = parseEosVersion(this.consoleVersion);
+    if (!configured || !reported) return null;
+    if (configured.major === reported.major && configured.minor === reported.minor) return null;
+    return `Console reports Eos ${this.consoleVersion}, but Settings say ${this.cfg.settings.connection.eosVersion}. Update the version in the Setup Wizard.`;
+  }
+
+  private recordCommissioning(patch: Partial<CommissioningRecord>) {
+    const s = this.cfg.settings;
+    const next = this.store.update('settings', { ...s, commissioning: { ...s.commissioning, ...patch } }, { backup: false });
+    this.broadcast({ t: 'config', config: next });
   }
 
   // ───────────────────────────── engine lifecycle ─────────────────────────────
@@ -190,6 +263,7 @@ export class Controller {
       log: (level, message) => this.log(level, message),
       onFeedback: (ev, raw) => this.onFeedback(ev, raw),
       onConnectionChange: () => this.pushStatus(),
+      onOpen: () => { this.groupVerifier.invalidate(); this.requestGroupVerification(); },
     });
     engine.allowLighting = allowLighting;
     this.eos = engine;
@@ -201,6 +275,7 @@ export class Controller {
     this.limiter.clear();
     this.eos?.stop();
     this.eos = null;
+    this.groupVerifier.invalidate();
     this.consoleVersion = null;
     this.showName = null;
     this.seenCueFeedback = false;
@@ -251,8 +326,37 @@ export class Controller {
 
   private onFeedback(ev: FeedbackEvent, _raw: OscMessage) {
     switch (ev.kind) {
-      case 'version': this.consoleVersion = ev.version; break;
-      case 'showName': this.showName = ev.name; break;
+      case 'version': {
+        this.consoleVersion = ev.version;
+        const mm = this.versionMismatch();
+        if (mm) this.log('warn', mm);
+        break;
+      }
+      case 'showName': {
+        if (this.showName != null && this.showName !== ev.name) {
+          this.log('warn', `Show changed on the console ("${ev.name}") — group verification reset.`);
+          this.requestGroupVerification(true);
+        }
+        this.showName = ev.name;
+        break;
+      }
+      case 'notify':
+        if (ev.target === 'group' || ev.target === 'patch') {
+          this.log('info', `Console reported ${ev.target} changes — re-reading group membership.`);
+          this.requestGroupVerification(true);
+        }
+        break;
+      case 'groupInfo': this.groupVerifier.onInfo(ev.group, ev.label); break;
+      case 'groupChannels': this.groupVerifier.onChannels(ev.group, ev.channels, ev.unparsed, Date.now(), ev); break;
+      case 'cueChanged': {
+        this.seenCueFeedback = true;
+        const key = ev.which === 'pending' ? 'pendingCue' : 'previousCue';
+        const cur = this.feedback[key];
+        if (!cur || cur.list !== ev.list || cur.cue !== ev.cue) {
+          this.feedback[key] = { list: ev.list, cue: ev.cue, label: null, text: `${ev.list}/${ev.cue}`, progress: null, receivedAt: Date.now(), source: 'confirmed' };
+        }
+        break;
+      }
       case 'commandLine': this.feedback.commandLine = ev.text; break;
       case 'cueText': {
         this.seenCueFeedback = true;
@@ -263,7 +367,9 @@ export class Controller {
       case 'cueProgress': {
         this.seenCueFeedback = true;
         const a = this.feedback.activeCue;
-        if (a && a.list === ev.list && a.cue === ev.cue) this.feedback.activeCue = { ...a, progress: ev.progress, receivedAt: Date.now() };
+        this.feedback.activeCue = a && a.list === ev.list && a.cue === ev.cue
+          ? { ...a, progress: ev.progress, receivedAt: Date.now() }
+          : { list: ev.list, cue: ev.cue, label: null, text: `${ev.list}/${ev.cue}`, progress: ev.progress, receivedAt: Date.now(), source: 'confirmed' };
         break;
       }
       case 'patchEntry': {
@@ -296,7 +402,15 @@ export class Controller {
       const g = this.cfg.groups.find((x) => x.id === target.groupId);
       if (!g) throw new Error('Unknown group');
       const set = new Set(g.channels);
-      return { channels: g.channels, eosGroup: g.eosGroup, fixtures: fixtures.filter((f) => set.has(f.channel)), label: g.name };
+      const fx = fixtures.filter((f) => set.has(f.channel));
+      const unpatched = g.channels.filter((c) => !fx.some((f) => f.channel === c));
+      if (unpatched.length) throw new Error(`${g.name} lists channel(s) ${unpatched.slice(0, 6).join(', ')} that are not in this app's patch. Fix the group in Settings → Groups.`);
+      // Never trust the local list as proof of what Eos Group N contains.
+      const verified = g.eosGroup != null && this.groupAddressable(g.id) != null;
+      return {
+        channels: g.channels, eosGroup: verified ? g.eosGroup : null, fixtures: fx,
+        label: g.eosGroup != null && !verified ? `${g.name} (as channel list; Eos Group ${g.eosGroup} not verified)` : g.name,
+      };
     }
     const set = new Set(target.channels);
     const fx = fixtures.filter((f) => set.has(f.channel));
@@ -436,10 +550,20 @@ export class Controller {
               : `“${look.name}” — preview only (not mapped to an Eos action).`,
           };
         }
+        if (a.type === 'macro' && role !== 'operator') {
+          return { ok: false, delivery: 'blocked', message: 'Macro looks are operator-only — a macro can do anything on the console.' };
+        }
         const build = (): OscMessage[] => {
           switch (a.type) {
             case 'cue': return b.fireCue(a.list, a.cue);
-            case 'preset': return b.preset(a.preset, a.eosGroup);
+            case 'preset': {
+              // A preset is applied to "Group N", so the same verification rule applies.
+              const local = this.cfg.groups.find((g) => g.eosGroup === a.eosGroup);
+              if (this.mode !== 'offline' && (!local || !this.groupAddressable(local.id))) {
+                throw new Error(`Preset look needs Eos Group ${a.eosGroup} to be verified against a local group (Settings → Groups). Nothing was sent.`);
+              }
+              return b.preset(a.preset, a.eosGroup);
+            }
             case 'macro': return b.macro(a.macro);
             case 'sub': return b.sub(a.sub, a.level);
             case 'snapshot': return b.snapshot(a.snapshot);
@@ -459,10 +583,44 @@ export class Controller {
       }
       case 'go':
       case 'back': {
-        const key = cmd.kind === 'go' ? this.cfg.settings.connection.goKey : this.cfg.settings.connection.backKey;
-        return this.deliver(cmd.kind === 'go' ? 'GO' : 'BACK', () => b.key(key), () => {
-          if (this.mode === 'offline') this.simulateStep(cmd.kind === 'go' ? 1 : -1);
+        const master = this.cfg.settings.masterCueList;
+        const list = cmd.list ?? master;
+        if (list !== master && role !== 'operator') {
+          return { ok: false, delivery: 'blocked', message: `Volunteers can only GO/BACK the master cue list (${master}).` };
+        }
+        const gb = this.goBackStatus(list);
+        if (gb.method === 'keys' && list !== master) {
+          return { ok: false, delivery: 'error', message: `GO/BACK use console keys on this Eos version, which act on the master playback — they can't target cue list ${list}.` };
+        }
+        const go = cmd.kind === 'go';
+        const label = `${go ? 'GO' : 'BACK'} ${gb.method === 'cue-list' ? `cue list ${list}` : '(master playback key)'}`;
+        const build = () => gb.method === 'cue-list'
+          ? (go ? b.cueListGo(list) : b.cueListStop(list))
+          : b.key(go ? this.cfg.settings.connection.goKey : this.cfg.settings.connection.backKey);
+        return this.deliver(label, build, () => {
+          if (this.mode === 'offline') this.simulateStep(go ? 1 : -1, gb.method === 'cue-list' ? list : this.cfg.settings.masterCueList);
         });
+      }
+      case 'release': {
+        const t = this.resolve(cmd.target);
+        const prot = this.protectedIn(t);
+        if (prot.length) return this.protectedBlocked(prot);
+        const res = this.deliver(`Release ${t.label} (Sneak)`, () => b.release(t), (src) => {
+          if (src === 'simulated') this.setLevels(t.channels, src, () => ({ intensity: 0 }));
+        });
+        const lt = this.cfg.settings.commissioning.liveTest;
+        if (res.delivery === 'sent' && lt && !lt.released && t.channels.length === 1 && t.channels[0] === lt.channel) {
+          this.recordCommissioning({ liveTest: { ...lt, released: true } });
+        }
+        return res;
+      }
+      case 'singleChannelTest':
+        return this.singleChannelTest(cmd.channel, cmd.level, cmd.confirmChannel);
+      case 'verifyGroups': {
+        if (this.mode === 'offline' || !this.eos) return { ok: false, delivery: 'blocked', message: 'Connect in Monitor or Live mode to read groups from the console.' };
+        if (!this.eos.supportsThirdPartyApi) return { ok: false, delivery: 'error', message: 'Reading groups needs the Eos 2.x+ /eos/get API.' };
+        this.requestGroupVerification(true);
+        return { ok: true, delivery: 'sent', message: 'Reading group membership from the console (read-only)…' };
       }
       case 'setSub': {
         const sub = this.cfg.submasters.find((s) => s.sub === cmd.sub);
@@ -489,7 +647,8 @@ export class Controller {
         this.pushStatus();
         return { ok: true, delivery: 'simulated', message: 'Protected channels locked' };
       case 'testConnection':
-        return this.testConnection();
+        // Only an operator's test is recorded as a commissioning result.
+        return this.testConnection(role === 'operator');
       case 'syncFromConsole': {
         if (this.mode === 'offline' || !this.eos) return { ok: false, delivery: 'blocked', message: 'Connect in Monitor or Live mode first.' };
         if (this.connection().state !== 'connected') return { ok: false, delivery: 'error', message: 'Console is not responding yet.' };
@@ -506,7 +665,7 @@ export class Controller {
     return { ok: false, delivery: 'blocked', message: `Protected channel(s) ${list} (relays/utility). Unlock protected controls first.` };
   }
 
-  private async testConnection(): Promise<CommandResult> {
+  private async testConnection(record: boolean): Promise<CommandResult> {
     if (this.mode === 'offline' || !this.eos) {
       return { ok: false, delivery: 'blocked', message: 'Offline mode sends no network traffic. Switch to Ion Monitor to test the connection.' };
     }
@@ -517,10 +676,44 @@ export class Controller {
       await new Promise((r) => setTimeout(r, 100));
       const rx = this.eos?.connection().lastRxAt ?? 0;
       if (rx > before && rx >= sentAt) {
-        return { ok: true, delivery: 'sent', message: `Console replied in ${rx - sentAt} ms${this.consoleVersion ? ` (Eos ${this.consoleVersion})` : ''}.` };
+        // Give a version reply a moment to arrive so the record includes it.
+        if (!this.consoleVersion && this.eos?.supportsThirdPartyApi) {
+          try { this.eos.transmit([this.builder().getVersion()], { quiet: true }); } catch { /* ignore */ }
+          for (let j = 0; j < 10 && !this.consoleVersion; j++) await new Promise((r) => setTimeout(r, 100));
+        }
+        const message = `Console replied in ${rx - sentAt} ms${this.consoleVersion ? ` (Eos ${this.consoleVersion})` : ''}.`;
+        if (record) this.recordCommissioning({ monitorTest: { at: Date.now(), ok: true, replyMs: rx - sentAt, reportedVersion: this.consoleVersion, detail: message } });
+        return { ok: true, delivery: 'sent', message };
       }
     }
-    return { ok: false, delivery: 'error', message: 'No reply within 3 s. Check IP, ports, transport and that OSC RX/TX are enabled on the console.' };
+    const message = 'No reply within 3 s. Check IP, ports, transport and that OSC RX/TX are enabled on the console.';
+    if (record) this.recordCommissioning({ monitorTest: { at: Date.now(), ok: false, replyMs: null, reportedVersion: null, detail: message } });
+    return { ok: false, delivery: 'error', message };
+  }
+
+  /**
+   * Setup-wizard live test: exactly one channel, typed confirmation, live mode only,
+   * never a protected channel and never a channel the console patch doesn't have.
+   */
+  private singleChannelTest(channel: number, level: number, confirmChannel: number): CommandResult {
+    if (this.mode !== 'eos-live') return { ok: false, delivery: 'blocked', message: 'Arm Live Control first (the wizard asks you to).' };
+    const conn = this.status().connection;
+    if (conn.state !== 'connected' || conn.stale) return { ok: false, delivery: 'error', message: 'The console is not responding — nothing was sent.' };
+    if (!Number.isInteger(channel) || channel !== confirmChannel) return { ok: false, delivery: 'blocked', message: 'Type the channel number again to confirm. Nothing was sent.' };
+    const f = this.cfg.fixtures.find((x) => x.channel === channel);
+    if (!f) return { ok: false, delivery: 'blocked', message: `Channel ${channel} is not in this app's patch.` };
+    if (f.protected) return { ok: false, delivery: 'blocked', message: `Channel ${channel} is protected (relay/utility) and cannot be used for the test.` };
+    if (this.syncResult?.patch.length && !this.syncResult.patch.some((p) => p.channel === channel)) {
+      return { ok: false, delivery: 'blocked', message: `The console patch read in this session has no channel ${channel}.` };
+    }
+    const v = Math.round(clamp(level, 1, 100));
+    const res = this.deliver(`Setup test: Chan ${channel} @ ${v}%`, () => this.builder().intensity({ channels: [channel], eosGroup: null }, v),
+      (src) => this.setLevels([channel], src, (p) => ({ ...p, intensity: v })));
+    if (res.delivery === 'sent') {
+      this.log('warn', `Setup wizard live test sent: Chan ${channel} At ${v}.`);
+      this.recordCommissioning({ liveTest: { at: Date.now(), channel, level: v, operatorConfirmedLight: null, released: false } });
+    }
+    return res;
   }
 
   // ───────────────────────────── simulation helpers ─────────────────────────────
@@ -569,8 +762,7 @@ export class Controller {
     this.pushStatus();
   }
 
-  private simulateStep(dir: 1 | -1) {
-    const list = this.cfg.settings.masterCueList;
+  private simulateStep(dir: 1 | -1, list = this.cfg.settings.masterCueList) {
     const cues = this.cfg.cueLists.find((l) => l.list === list)?.cues ?? [];
     if (!cues.length) return;
     const cur = this.feedback.activeCue?.list === list ? this.feedback.activeCue.cue : null;

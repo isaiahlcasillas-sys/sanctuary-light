@@ -11,8 +11,8 @@ import { BackupSettings } from './BackupSettings';
 import { LogView } from './LogView';
 import { OscReference } from './OscReference';
 
-const TABS = [
-  { id: 'connection', label: 'Connection', icon: Cable, el: <ConnectionSettings /> },
+const tabs = (onOpenWizard?: () => void) => [
+  { id: 'connection', label: 'Connection', icon: Cable, el: <ConnectionSettings onOpenWizard={onOpenWizard} /> },
   { id: 'patch', label: 'Patch', icon: Boxes, el: <PatchSettings /> },
   { id: 'groups', label: 'Groups', icon: Layers, el: <GroupSettings /> },
   { id: 'looks', label: 'Looks', icon: Sparkles, el: <LookSettings /> },
@@ -23,7 +23,8 @@ const TABS = [
   { id: 'osc', label: 'OSC Reference', icon: BookOpen, el: <OscReference /> },
 ];
 
-export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange(o: boolean): void }) {
+export function SettingsDialog({ open, onOpenChange, onOpenWizard }: { open: boolean; onOpenChange(o: boolean): void; onOpenWizard?(): void }) {
+  const TABS = tabs(onOpenWizard && (() => { onOpenChange(false); onOpenWizard(); }));
   return (
     <Modal open={open} onOpenChange={onOpenChange} title="Settings" wide>
       <div className="row" style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)' }}>

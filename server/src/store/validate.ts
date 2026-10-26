@@ -1,4 +1,4 @@
-import type { AppConfig } from '@sanctuary/shared';
+import { checkConnectionCompat, isIPv4, isValidEosVersion, type AppConfig } from '@sanctuary/shared';
 
 export type SectionKey = keyof AppConfig;
 
@@ -12,15 +12,19 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
       const s = value as AppConfig['settings'];
       const c = s?.connection;
       if (!c) return 'Missing connection settings';
-      if (c.consoleIp && !/^(\d{1,3}\.){3}\d{1,3}$/.test(c.consoleIp)) return 'Console IP must be an IPv4 address like 10.101.100.101';
+      if (c.consoleIp && !isIPv4(c.consoleIp)) return 'Console IP must be an IPv4 address like 10.101.100.101';
       if (!['udp', 'tcp-1.0', 'tcp-1.1'].includes(c.transport)) return 'Unknown transport';
       if (!isPort(c.udpConsolePort) || !isPort(c.udpLocalPort) || !isPort(c.tcpPort)) return 'Ports must be 1–65535';
-      if (!['1.x', '2.x', '3.x'].includes(c.eosVersion)) return 'Unknown Eos version';
+      if (c.eosVersion && !isValidEosVersion(c.eosVersion)) return 'Eos version should look like 2.9.3 or 3.2.12 (as shown in the Ion\'s About screen)';
+      if (!['auto', 'cue-list', 'keys'].includes(c.goBackMethod)) return 'Unknown GO/BACK method';
+      const compat = checkConnectionCompat(c);
+      if (compat.errors.length) return compat.errors[0];
       if (c.oscUser != null && !isInt(c.oscUser, 0)) return 'OSC user must be a whole number or empty';
       if (!(c.heartbeatSeconds >= 1 && c.staleSeconds > c.heartbeatSeconds)) return 'Stale timeout must be longer than the heartbeat interval';
       if (!(c.maxCommandRateHz >= 1 && c.maxCommandRateHz <= 30)) return 'Command rate must be 1–30 per second';
       if (!/^[a-z0-9_]+$/i.test(c.goKey) || !/^[a-z0-9_]+$/i.test(c.backKey)) return 'Key names may only contain letters, digits and _';
       if (!isInt(s.masterCueList, 1)) return 'Master cue list must be a positive number';
+      if (!s.commissioning || typeof s.commissioning.notes !== 'string') return 'Missing commissioning record';
       return null;
     }
     case 'fixtures': {

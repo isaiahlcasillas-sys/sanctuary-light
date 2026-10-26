@@ -38,6 +38,9 @@ export function CuePanel({ volunteer = false }: { volunteer?: boolean }) {
       <div className="panel-head">
         <h2>Cues</h2>
         <span className="badge">List {master}{list ? ` · ${list.label}` : ''}</span>
+        {status?.goBack.method === 'keys' && (
+          <Tip label={status.goBack.note}><span className="badge warn" tabIndex={0}>GO = master playback</span></Tip>
+        )}
         <span className="spacer" />
         {noFeedback && <Tip label={cap?.note ?? ''}><span className="badge warn" tabIndex={0}>Feedback unavailable</span></Tip>}
       </div>
@@ -47,10 +50,10 @@ export function CuePanel({ volunteer = false }: { volunteer?: boolean }) {
           <CueCard title="Next" cue={fb?.pendingCue ?? null} fallback={noFeedback ? 'Unknown' : '—'} />
         </div>
         <div className="go-row">
-          <Tip label={`Sends the Eos "${config?.settings.connection.backKey}" key (Stop/Back)`}>
+          <Tip label={`${status?.goBack.note ?? ''} BACK sends ${status?.goBack.backAddress ?? ''}`}>
             <button className="back-btn" onClick={() => void sendCommand({ kind: 'back' })}><ChevronsLeft size={18} style={{ verticalAlign: -3 }} /> BACK</button>
           </Tip>
-          <Tip label={`Sends the Eos "${config?.settings.connection.goKey}" key — acts on the console's selected cue list`}>
+          <Tip label={`${status?.goBack.note ?? ''} GO sends ${status?.goBack.goAddress ?? ''}`}>
             <button className="go-btn" onClick={() => void sendCommand({ kind: 'go' })}><Play size={22} fill="currentColor" style={{ verticalAlign: -3 }} /> GO</button>
           </Tip>
         </div>

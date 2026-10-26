@@ -83,12 +83,12 @@ describe('Controller with a fake Eos console over TCP', () => {
     it(`monitor is read-only and live sends documented OSC (${transport})`, async () => {
       const { c, store } = make();
       const s = store.get().settings;
-      store.update('settings', { ...s, connection: { ...s.connection, consoleIp: '127.0.0.1', transport, tcpPort: transport === 'tcp-1.1' ? eos.ports.slip : eos.ports.length } });
+      store.update('settings', { ...s, connection: { ...s.connection, consoleIp: '127.0.0.1', eosVersion: '3.3.10', transport, tcpPort: transport === 'tcp-1.1' ? eos.ports.slip! : eos.ports.length } });
       eos.received.length = 0;
 
       await c.execute({ kind: 'setMode', mode: 'eos-monitor' }, 'operator');
       await until(() => c.status().connection.state === 'connected');
-      await until(() => c.status().connection.consoleVersion === '0.0.0 FAKE');
+      await until(() => c.status().connection.consoleVersion === '3.3.10.0');
       const blocked = await c.execute({ kind: 'fireCue', list: 1, cue: '5' }, 'operator');
       expect(blocked.delivery).toBe('blocked');
       expect(eos.received.some((m) => m.includes('/fire'))).toBe(false);
@@ -120,7 +120,7 @@ describe('Controller with a fake Eos console over TCP', () => {
   it('reports an error instead of pretending when the console is unreachable', async () => {
     const { c, store } = make();
     const s = store.get().settings;
-    store.update('settings', { ...s, connection: { ...s.connection, consoleIp: '127.0.0.1', transport: 'tcp-1.1', tcpPort: 1 } });
+    store.update('settings', { ...s, connection: { ...s.connection, consoleIp: '127.0.0.1', eosVersion: '3.3.10', transport: 'tcp-1.1', tcpPort: 1 } });
     await c.execute({ kind: 'setMode', mode: 'eos-live', confirm: true }, 'operator');
     await wait(100);
     const r = await c.execute({ kind: 'go' }, 'operator');

@@ -146,7 +146,16 @@ export interface StageLayout {
 }
 
 export type OscTransport = 'udp' | 'tcp-1.0' | 'tcp-1.1';
-export type EosVersion = '1.x' | '2.x' | '3.x';
+/** Eos software version as shown in About, e.g. "2.9.3" or "3.2.12". Empty = not identified yet. */
+export type EosVersion = string;
+
+/**
+ * How GO/BACK reach the console:
+ *   cue-list = /eos/cues/<list>/fire and /eos/cues/<list>/stop (acts on a specific cue list)
+ *   keys     = /eos/key/<go>/<back> (acts on whatever list is on the console's master playback)
+ *   auto     = cue-list where documented for the identified Eos version, otherwise keys
+ */
+export type GoBackMethod = 'auto' | 'cue-list' | 'keys';
 
 export interface ConnectionSettings {
   consoleIp: string;
@@ -164,7 +173,8 @@ export interface ConnectionSettings {
   staleSeconds: number;
   /** Max command-line updates per second for continuous controls (sliders). */
   maxCommandRateHz: number;
-  /** Eos key names; verify against the key list for your Eos version. */
+  goBackMethod: GoBackMethod;
+  /** Eos key names used when GO/BACK use console keys; verify against the key list for your Eos version. */
   goKey: string;
   backKey: string;
 }
@@ -176,11 +186,22 @@ export interface SafetySettings {
   localhostOnly: boolean;
 }
 
+/** What has been checked on the real console (filled in by the Ion Setup Wizard). */
+export interface CommissioningRecord {
+  /** Version the operator read from the console's About screen. */
+  versionConfirmedAt: number | null;
+  networkCheckedAt: number | null;
+  monitorTest: { at: number; ok: boolean; replyMs: number | null; reportedVersion: string | null; detail: string } | null;
+  liveTest: { at: number; channel: number; level: number; operatorConfirmedLight: boolean | null; released: boolean } | null;
+  notes: string;
+}
+
 export interface Settings {
   connection: ConnectionSettings;
   safety: SafetySettings;
   sanctuaryName: string;
   masterCueList: number;
+  commissioning: CommissioningRecord;
 }
 
 export interface AppConfig {

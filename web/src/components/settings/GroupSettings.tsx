@@ -1,18 +1,22 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { channelExpression, parseChannelList, type FixtureGroup } from '@sanctuary/shared';
 import { SaveBar, useSection } from './useSection';
+import { GroupBadge } from '../SetupWizard';
+import { sendCommand, useApp } from '../../state/store';
 import { useState } from 'react';
 
 export function GroupSettings() {
   const { draft, setDraft, dirty, save, saving, revert } = useSection('groups');
   const [text, setText] = useState<Record<string, string>>({});
+  const verification = useApp((st) => st.status?.groupVerification ?? {});
   const update = (id: string, patch: Partial<FixtureGroup>) => setDraft(draft.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   return (
     <div>
       <h4>Groups</h4>
-      <p className="hint">If a group also exists in the Ion show file, enter its Eos group number so commands use "Group N" instead of listing channels.</p>
+      <p className="hint">If a group also exists in the Ion show file, enter its Eos group number. Sanctuary Light reads that group from the console (read-only) and sends "Group N" <strong>only</strong> when the console's membership exactly matches this list and contains no protected channel. Otherwise it lists the channels explicitly, so a group edited on the Ion can never make this app operate relays.</p>
+      <button className="btn sm" style={{ marginBottom: 8 }} onClick={() => void sendCommand({ kind: 'verifyGroups' })}>Verify against console</button>
       <table className="data-table">
-        <thead><tr><th>Name</th><th style={{ width: 60 }}>Color</th><th>Channels</th><th style={{ width: 90 }}>Eos group</th><th style={{ width: 80 }}>Volunteer</th><th style={{ width: 36 }} /></tr></thead>
+        <thead><tr><th>Name</th><th style={{ width: 60 }}>Color</th><th>Channels</th><th style={{ width: 90 }}>Eos group</th><th style={{ width: 80 }}>Volunteer</th><th style={{ width: 110 }}>Console</th><th style={{ width: 36 }} /></tr></thead>
         <tbody>
           {draft.map((g) => (
             <tr key={g.id}>
@@ -23,6 +27,7 @@ export function GroupSettings() {
                 onBlur={(e) => { update(g.id, { channels: parseChannelList(e.target.value) }); setText({ ...text, [g.id]: undefined as unknown as string }); }} /></td>
               <td><input className="input" type="number" placeholder="—" aria-label="Eos group number" value={g.eosGroup ?? ''} onChange={(e) => update(g.id, { eosGroup: e.target.value ? Number(e.target.value) : null })} /></td>
               <td style={{ textAlign: 'center' }}><input type="checkbox" checked={g.volunteerVisible} aria-label="Visible to volunteers" onChange={(e) => update(g.id, { volunteerVisible: e.target.checked })} /></td>
+              <td title={verification[g.id]?.detail}><GroupBadge state={verification[g.id]?.state ?? 'unverified'} /></td>
               <td><button className="btn sm icon ghost" aria-label={`Delete ${g.name}`} onClick={() => setDraft(draft.filter((x) => x.id !== g.id))}><Trash2 size={14} /></button></td>
             </tr>
           ))}

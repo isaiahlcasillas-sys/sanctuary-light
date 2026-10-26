@@ -30,7 +30,11 @@ describe('EosCommandBuilder', () => {
   });
   it('prefixes the OSC user when configured', () => {
     const u = new EosCommandBuilder(5);
-    expect(u.fireCue(1, '1')[0].address).toBe('/eos/user/5/cue/1/1/fire');
+    // Only user-scoped addresses (command line, params, keys) get the /eos/user/<n> prefix.
+    expect(u.intensity({ channels: [1], eosGroup: null }, 50)[0].address).toBe('/eos/user/5/newcmd');
+    expect(u.key('go_0')[0].address).toBe('/eos/user/5/key/go_0');
+    expect(u.fireCue(1, '1')[0].address).toBe('/eos/cue/1/1/fire');
+    expect(u.cueListGo(2)[0].address).toBe('/eos/cues/2/fire');
     expect(u.ping().address).toBe('/eos/ping');
   });
   it('only treats query addresses as read-only', () => {

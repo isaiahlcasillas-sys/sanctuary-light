@@ -3,6 +3,7 @@
  *   Browser ⇄ (HTTP + WebSocket) ⇄ this server ⇄ (OSC) ⇄ ETC Ion / Eos
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +37,7 @@ function broadcast(msg: ServerMessage) {
 }
 
 const controller = new Controller(store, broadcast, () => auth.defaultPinsInUse);
+for (const note of store.migrationNotes) controller.log('warn', `Config updated: ${note}`);
 
 // ───────────────────────────── HTTP API ─────────────────────────────
 
@@ -116,6 +118,14 @@ app.get('/api/patch/export', operatorOnly, (req, res) => {
   const fixtures = store.get().fixtures;
   if (req.query.format === 'json') { res.json({ fixtures }); return; }
   res.type('text/csv').send(exportCsv(fixtures));
+});
+
+/** This computer's IPv4 addresses, for the setup wizard's same-subnet check. Read-only. */
+app.get('/api/network/interfaces', operatorOnly, (_req, res) => {
+  const out = Object.entries(os.networkInterfaces()).flatMap(([name, list]) => (list ?? [])
+    .filter((i) => i.family === 'IPv4' && !i.internal)
+    .map((i) => ({ name, address: i.address, netmask: i.netmask, cidr: i.cidr ?? null })));
+  res.json(out);
 });
 
 app.get('/api/sync', operatorOnly, (_req, res) => { res.json(controller.syncResult); });

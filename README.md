@@ -13,8 +13,8 @@ The Ion stays the lighting engine and the fallback. Sanctuary Light sends it com
 |---|---|
 | ![Volunteer](docs/screenshots/volunteer.png) | ![Operator](docs/screenshots/operator.png) |
 
-> **Status: Phase 1 complete, Phase 2 foundation implemented and tested against a *fake* Eos console.**
-> The app has **not** been connected to the real Ion yet. The sample patch, groups, looks and cue labels are placeholders built from the preliminary channel groupings. Nothing in them has been checked against the real show file.
+> **Status: Phase 2.5 (reliability and integration pass) complete, tested only against a *fake* Eos console.**
+> The app has **not** been connected to the real Ion yet. On-site commissioning uses the built-in **Ion Setup Wizard**; see [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md). The sample patch, groups, looks and cue labels are placeholders built from the preliminary channel groupings. Nothing in them has been checked against the real show file.
 
 ---
 
@@ -35,17 +35,18 @@ Default PINs: **operator `1234`**, **volunteer `0000`**. Change them in *Setting
 
 ```bash
 npm run dev          # server on :4700 (auto-restart) + UI on http://localhost:5173
-npm test             # 32 unit/integration tests (OSC codec, framing, Eos commands, safety rules, patch import)
+npm test             # 67 tests: OSC codec/framing, Eos commands, version rules, group safety, setup-wizard guards, patch import
 npm run typecheck
 ```
 
 ### Trying the full stack without the Ion
 
 ```bash
-npm run eos-sim      # FAKE Eos console on 127.0.0.1 (TCP 3032/3037, UDP 8000→8001)
+npm run eos-sim                         # FAKE Eos 3.3 console: TCP 3032 (OSC 1.0), 3037 (SLIP), UDP 8000→8001
+npm run eos-sim -- --version 2.9.3      # behaves like Eos 2.9: no port 3037, no /eos/cues
 ```
 
-Then go to *Settings → Connection*, set **Ion IP = 127.0.0.1**, save, and switch to **MONITOR** and then **LIVE**. The fake console prints every OSC message it receives. It shows you exactly what the real Ion would get. It labels itself "FAKE SHOW (not a real console)", so it can't be mistaken for real feedback.
+Then sign in as operator, open **Ion setup**, enter the version you started the simulator with and **Ion IP = 127.0.0.1**, and walk through the Monitor and Live-test steps. The fake console prints every OSC message it receives. It shows you exactly what the real Ion would get. It labels itself "FAKE SHOW (not a real console)", so it can't be mistaken for real feedback.
 
 ### Configuration
 
@@ -86,7 +87,10 @@ Every command returns one of `sent`, `simulated`, `blocked` or `error`, and the 
 * **Protected channels**: relays and utility (61–70 by default) are refused until an operator unlocks them. The unlock is time-limited (5 min), and it applies in every mode. Protected submasters work the same way.
 * Volunteers can only fire volunteer-visible looks, GO/BACK, fire cues, and adjust volunteer-visible groups and submasters.
 * Fader updates are rate-limited (10/s by default, latest value wins), so the Ion's command line is never flooded.
-* Use a dedicated **OSC user** (*Settings → Connection*). Commands then go to `/eos/user/<n>/...` and never type into the operator's command line on the Ion.
+* Use a dedicated **OSC user** (*Settings → Connection*). Command-line commands then go to `/eos/user/<n>/...` and never type into the operator's command line on the Ion.
+* **Connecting requires a confirmed Eos version.** Ports and features are checked against it, so the app refuses TCP 3037 before Eos 3.1, for example. See [`docs/EOS_OSC.md`](docs/EOS_OSC.md).
+* **Local groups are never trusted as proof of what an Eos group contains.** "Group N" is sent only after the console has reported, this session, that the group exactly matches and contains no protected channel. Otherwise the explicit local channel list is sent. Preset looks are blocked until their group is verified, and macro looks are operator-only.
+* **GO/BACK target the configured cue list** (`/eos/cues/<list>/fire|stop`) on Eos 3.3+, where ETC documents it. Older versions fall back to the `go_0`/`stopback` keys, and the UI flags that these act on the master playback.
 * SceneStation and architectural zones are not in this app's patch. Keep it that way unless the Ion already controls them.
 * Saving layouts, patch, looks and cue labels writes local JSON only. **No setting in this app modifies the Ion show file.** Destructive operations (replace patch, restore, reset) ask for confirmation and back up first.
 * The WebSocket rejects cross-site origins. Every command is re-authorised against its session token.
@@ -120,7 +124,8 @@ On Eos 2.0+ you can also use *Settings → Connection → Read patch & cues from
 ## Roadmap
 
 1. **Phase 1, visual prototype** ✅: stage editor, simulated beams, faders, color wheel, CCT, pan/tilt, beam, looks, cues, volunteer mode.
-2. **Phase 2, real ETC integration** ✅ *(code complete; awaiting on-site verification)*: OSC over UDP / TCP 1.0 / TCP 1.1, monitor and live modes, cue feedback, connection testing. Next step: run the checklist in [`docs/EOS_OSC.md`](docs/EOS_OSC.md) on the Ion during a non-service time.
+2. **Phase 2, real ETC integration** ✅ *(code complete; awaiting on-site verification)*: OSC over UDP / TCP 1.0 / TCP 1.1, monitor and live modes, cue feedback, connection testing.
+   **Phase 2.5, reliability and integration** ✅: version-aware port rules (corrected 3032/3037 guidance), cue-list GO/BACK, group verification against the console, config migration, and the Ion Setup Wizard. Next step: [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md) at church.
 3. **Phase 3, real sanctuary configuration**: import the actual Ion patch, set Eos group numbers, map looks to real cues and presets, and draw the real room.
 4. **Phase 4, volunteer and worship features**: per-service run sheets, look editing for worship leaders, more volunteer polish.
 5. **Phase 5, optional direct DMX**: see [`docs/PHASE5_DIRECT_DMX.md`](docs/PHASE5_DIRECT_DMX.md).
