@@ -16,6 +16,10 @@ interface ConsoleGroup {
   unparsed: string[];
   gotInfo: boolean;
   gotChannels: boolean;
+  /** Total elements in the channel-list reply (from /list/<index>/<total>). */
+  total: number | null;
+  /** Element positions received so far; the list is trusted only when 0..total-1 all arrived. */
+  covered: Set<number>;
   lastPacketAt: number;
 }
 
@@ -48,7 +52,7 @@ export class GroupVerifier {
 
   private entry(group: number): ConsoleGroup {
     let e = this.groups.get(group);
-    if (!e) { e = { label: null, channels: new Set(), unparsed: [], gotInfo: false, gotChannels: false, lastPacketAt: 0 }; this.groups.set(group, e); }
+    if (!e) { e = { label: null, channels: new Set(), unparsed: [], gotInfo: false, gotChannels: false, total: null, covered: new Set(), lastPacketAt: 0 }; this.groups.set(group, e); }
     return e;
   }
 
@@ -59,8 +63,12 @@ export class GroupVerifier {
     e.lastPacketAt = now;
   }
 
-  onChannels(group: number, channels: number[], unparsed: string[], now = Date.now()) {
+  onChannels(group: number, channels: number[], unparsed: string[], now = Date.now(), packet?: { argIndex: number; argCount: number; total: number | null }) {
     const e = this.entry(group);
+    if (packet) {
+      if (packet.total != null) e.total = packet.total;
+      for (let i = 0; i < packet.argCount; i++) e.covered.add(packet.argIndex + i);
+    }
     for (const c of channels) e.channels.add(c);
     e.unparsed.push(...unparsed);
     e.gotChannels = true;
@@ -92,6 +100,11 @@ export class GroupVerifier {
       const consoleChannels = [...e.channels].sort((a, b) => a - b);
       const info = { ...base, consoleChannels, consoleLabel: e.label, checkedAt: e.lastPacketAt };
       if (!e.gotChannels) { out[g.id] = { ...info, state: 'unverified', detail: `Group ${n}'s channel list was not received. Commands use the explicit channel list.` }; continue; }
+      if (e.total == null || [...Array(e.total).keys()].some((i) => !e.covered.has(i))) {
+        // A missing packet could hide a protected channel, so a partial list is never trusted.
+        out[g.id] = { ...info, state: 'unverified', detail: `Group ${n}'s channel list arrived incomplete (${e.covered.size}/${e.total ?? '?'} elements). Commands use the explicit channel list.` };
+        continue;
+      }
       const prot = consoleChannels.filter((c) => byChannel.get(c)?.protected);
       if (prot.length) {
         out[g.id] = { ...info, state: 'protected', detail: `Eos Group ${n} contains protected channel(s) ${prot.slice(0, 8).join(', ')}. "Group ${n}" will never be sent; the explicit channel list is used.` };

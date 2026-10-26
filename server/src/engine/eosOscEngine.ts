@@ -132,7 +132,8 @@ export class EosOscEngine implements OutputEngine {
   /** Read group membership (read-only). Replies arrive as groupInfo / groupChannels feedback. */
   requestGroups(groups: number[]) {
     if (!this.supportsThirdPartyApi) throw new Error('Reading groups needs the Eos 2.x+ /eos/get API.');
-    this.queueSync(groups.map((g) => this.builder.getGroup(g)));
+    // Sent immediately, not behind a long patch/cue sync, so the reply timeout is meaningful.
+    this.transmit(groups.map((g) => this.builder.getGroup(g)), { quiet: true });
   }
 
   /** Read show data via the Eos 2.x third-party API. Read-only. */

@@ -1,4 +1,4 @@
-import { checkConnectionCompat, parseEosVersion, type AppConfig } from '@sanctuary/shared';
+import { checkConnectionCompat, isIPv4, isValidEosVersion, type AppConfig } from '@sanctuary/shared';
 
 export type SectionKey = keyof AppConfig;
 
@@ -12,10 +12,10 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
       const s = value as AppConfig['settings'];
       const c = s?.connection;
       if (!c) return 'Missing connection settings';
-      if (c.consoleIp && !/^(\d{1,3}\.){3}\d{1,3}$/.test(c.consoleIp)) return 'Console IP must be an IPv4 address like 10.101.100.101';
+      if (c.consoleIp && !isIPv4(c.consoleIp)) return 'Console IP must be an IPv4 address like 10.101.100.101';
       if (!['udp', 'tcp-1.0', 'tcp-1.1'].includes(c.transport)) return 'Unknown transport';
       if (!isPort(c.udpConsolePort) || !isPort(c.udpLocalPort) || !isPort(c.tcpPort)) return 'Ports must be 1–65535';
-      if (c.eosVersion && !parseEosVersion(c.eosVersion)) return 'Eos version should look like 2.9.3 or 3.2.12';
+      if (c.eosVersion && !isValidEosVersion(c.eosVersion)) return 'Eos version should look like 2.9.3 or 3.2.12 (as shown in the Ion\'s About screen)';
       if (!['auto', 'cue-list', 'keys'].includes(c.goBackMethod)) return 'Unknown GO/BACK method';
       const compat = checkConnectionCompat(c);
       if (compat.errors.length) return compat.errors[0];

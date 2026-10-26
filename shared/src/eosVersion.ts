@@ -19,9 +19,18 @@ export function parseEosVersion(text: string | null | undefined): EosVersionNumb
   if (!text) return null;
   const legacy = text.trim().match(/^v?(\d+)\.x$/i);
   if (legacy) return { major: Number(legacy[1]), minor: 0, patch: 0 };
-  const m = text.trim().match(/^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:\.\d+)*/i);
+  // "major.minor[.patch[.build]]", optionally followed by a space and text (e.g. a build label).
+  const m = text.trim().match(/^v?(\d+)\.(\d+)(?:\.(\d+))?(?:\.\d+)?(?:\s.*)?$/i);
   if (!m) return null;
-  return { major: Number(m[1]), minor: Number(m[2] ?? 0), patch: Number(m[3] ?? 0) };
+  const major = Number(m[1]);
+  // Eos releases are 1.x–3.x; anything far outside that is a typo (e.g. an IP address).
+  if (major < 1 || major > 9) return null;
+  return { major, minor: Number(m[2]), patch: Number(m[3] ?? 0) };
+}
+
+/** For settings: a real version number, not a "2.x" placeholder. */
+export function isValidEosVersion(text: string): boolean {
+  return !/x$/i.test(text.trim()) && parseEosVersion(text) != null;
 }
 
 export function versionAtLeast(v: EosVersionNumber | null, major: number, minor = 0, patch = 0): boolean {

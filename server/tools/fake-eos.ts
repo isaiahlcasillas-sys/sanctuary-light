@@ -105,7 +105,7 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
         const all: OscArg[] = [int(-1), str(uid), ...ch.map((c) => (typeof c === 'number' ? int(c) : str(c)))];
         for (let i = 0; i < all.length; i += 3) {
           const chunk = all.slice(i, i + 3);
-          reply({ address: `/eos/out/get/group/${n}/channels/list/${i}/${chunk.length}`, args: chunk });
+          reply({ address: `/eos/out/get/group/${n}/channels/list/${i}/${all.length}`, args: chunk });
         }
       }
     }

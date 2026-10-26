@@ -126,20 +126,22 @@ export function ModeBanner() {
   if (status.mode === 'offline') {
     return <div className="banner offline"><ZapOff size={15} />OFFLINE SIMULATION — every control only changes the on-screen preview. Nothing is sent to the Ion.</div>;
   }
-  if (c.stale || c.state !== 'connected') {
-    return (
-      <div className="banner stale" role="alert">
-        <ShieldAlert size={15} />
-        {c.state === 'connected' ? 'Console information is STALE — no reply recently. What you see may be out of date.' : `Not connected to the Ion: ${c.detail}`}
-        <span className="spacer" /><span>Use the Ion directly if needed.</span>
-      </div>
-    );
-  }
-  if (status.versionMismatch) {
-    return <div className="banner stale" role="alert"><ShieldAlert size={15} />{status.versionMismatch}</div>;
-  }
-  if (status.mode === 'eos-monitor') {
-    return <div className="banner monitor"><Eye size={15} />ION MONITOR (READ-ONLY) — showing console feedback. Lighting commands are blocked.{c.consoleVersion && <><span className="spacer" />Eos {c.consoleVersion}{c.showName ? ` · ${c.showName}` : ''}</>}</div>;
-  }
-  return <div className="banner live" role="status"><Zap size={15} />LIVE — controls send commands to the Ion and change real lights.<span className="spacer" />{c.consoleVersion ? `Eos ${c.consoleVersion}` : ''}{c.showName ? ` · ${c.showName}` : ''}</div>;
+  // The mode banner is always shown; connection and version warnings are added below it,
+  // never instead of it, so LIVE stays visible whatever else is wrong.
+  const modeBanner = status.mode === 'eos-monitor'
+    ? <div className="banner monitor"><Eye size={15} />ION MONITOR (READ-ONLY) — showing console feedback. Lighting commands are blocked.{c.consoleVersion && <><span className="spacer" />Eos {c.consoleVersion}{c.showName ? ` · ${c.showName}` : ''}</>}</div>
+    : <div className="banner live" role="status"><Zap size={15} />LIVE — controls send commands to the Ion and change real lights.<span className="spacer" />{c.consoleVersion ? `Eos ${c.consoleVersion}` : ''}{c.showName ? ` · ${c.showName}` : ''}</div>;
+  return (
+    <div>
+      {modeBanner}
+      {(c.stale || c.state !== 'connected') && (
+        <div className="banner stale" role="alert">
+          <ShieldAlert size={15} />
+          {c.state === 'connected' ? 'Console information is STALE — no reply recently. What you see may be out of date.' : `Not connected to the Ion: ${c.detail}`}
+          <span className="spacer" /><span>Use the Ion directly if needed.</span>
+        </div>
+      )}
+      {status.versionMismatch && <div className="banner stale" role="alert"><ShieldAlert size={15} />{status.versionMismatch}</div>}
+    </div>
+  );
 }

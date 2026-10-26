@@ -78,6 +78,17 @@ describe('Eos version capabilities', () => {
     expect(checkConnectionCompat({ ...base, eosVersion: '2.9.3', transport: 'tcp-1.1', tcpPort: 3032 }).warnings[0]).toMatch(/OSC 1\.0/);
   });
 
+  it('rejects version typos and placeholders', () => {
+    expect(parseEosVersion('10.101.100.101')).toBeNull();
+    expect(parseEosVersion('300')).toBeNull();
+    expect(parseEosVersion('3.3.0.273 FAKE')).toEqual({ major: 3, minor: 3, patch: 0 });
+    const cfg = defaultConfig();
+    for (const bad of ['10.101.100.101', '3.x', '3']) {
+      const s = { ...cfg.settings, connection: { ...cfg.settings.connection, eosVersion: bad } };
+      expect(validateSection('settings', s, cfg)).toMatch(/Eos version/);
+    }
+  });
+
   it('settings validation refuses 3037 on Eos 2.x', () => {
     const cfg = defaultConfig();
     const s = { ...cfg.settings, connection: { ...cfg.settings.connection, eosVersion: '2.9.3', transport: 'tcp-1.1' as const, tcpPort: 3037 } };
@@ -95,6 +106,18 @@ describe('Config migration from v0.1', () => {
     expect(config.settings.connection).toMatchObject({ eosVersion: '', transport: 'tcp-1.0', tcpPort: 3032, backKey: 'stopback', goBackMethod: 'auto' });
     expect(config.settings.commissioning.liveTest).toBeNull();
     expect(notes).toHaveLength(3);
+  });
+
+  it('restores a v0.1 backup by migrating it first', () => {
+    const store = new ConfigStore(tmp());
+    const old = defaultConfig() as unknown as { settings: Record<string, unknown> };
+    const conn = { ...(old.settings.connection as object), eosVersion: '2.x', backKey: 'stop' } as Record<string, unknown>;
+    delete conn.goBackMethod;
+    const settings = { ...old.settings, connection: conn } as Record<string, unknown>;
+    delete settings.commissioning;
+    const restored = store.replaceAll({ ...old, settings } as unknown as AppConfig);
+    expect(restored.settings.connection).toMatchObject({ eosVersion: '', backKey: 'stopback', goBackMethod: 'auto' });
+    expect(store.migrationNotes.length).toBeGreaterThan(0);
   });
 
   it('defaultConfig returns independent copies (editing one never changes the defaults)', () => {
@@ -164,13 +187,34 @@ describe('GroupVerifier', () => {
   const front: FixtureGroup = { ...cfg.groups.find((g) => g.id === 'grp-front')!, eosGroup: 7 };
   const T = 1_000_000;
   const evalAt = (v: GroupVerifier, now: number, group = front) => v.evaluate([group], cfg.fixtures, now)[group.id];
+  /** Packet info for a channel list sent as one packet: <list index>, <UID>, then one arg per entry. */
+  const whole = (ch: number[], unparsed: string[] = []) => ({ argIndex: 0, argCount: 2 + ch.length + unparsed.length, total: 2 + ch.length + unparsed.length });
+
+  it('never trusts a channel list with a missing packet', () => {
+    const v = new GroupVerifier();
+    v.markRequested([7], T);
+    // Eos says 13 elements in total; only the first 12 arrived (relay 61 was in the lost packet).
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T, { argIndex: 0, argCount: 12, total: 13 });
+    const r = evalAt(v, T + 10_000);
+    expect(r.state).toBe('unverified');
+    expect(r.detail).toMatch(/incomplete/);
+    v.onChannels(7, [61], [], T + 20, { argIndex: 12, argCount: 1, total: 13 });
+    expect(evalAt(v, T + 10_000).state).toBe('protected');
+  });
+
+  it('never trusts a channel list without a total count', () => {
+    const v = new GroupVerifier();
+    v.markRequested([7], T);
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T);
+    expect(evalAt(v, T + 10_000).state).toBe('unverified');
+  });
 
   it('is unverified until the console answers, and never trusts a half-received list', () => {
     const v = new GroupVerifier();
     expect(evalAt(v, T).state).toBe('unverified');
     v.markRequested([7], T);
     v.onInfo(7, 'Front', T + 10);
-    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T + 20);
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T + 20, whole([20, 21, 22, 23, 24, 25, 26, 27, 28, 29], []));
     expect(evalAt(v, T + 20 + SETTLE_MS - 1).state).toBe('unverified');
     expect(evalAt(v, T + 20 + SETTLE_MS).state).toBe('verified');
   });
@@ -178,18 +222,18 @@ describe('GroupVerifier', () => {
   it('flags a console group that contains a protected channel', () => {
     const v = new GroupVerifier();
     v.markRequested([7], T);
-    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 61], [], T);
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 61], [], T, whole([20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 61], []));
     expect(evalAt(v, T + 1000)).toMatchObject({ state: 'protected' });
   });
 
   it('flags membership differences and unreadable entries', () => {
     const v = new GroupVerifier();
     v.markRequested([7], T);
-    v.onChannels(7, [20, 21], [], T);
+    v.onChannels(7, [20, 21], [], T, whole([20, 21], []));
     expect(evalAt(v, T + 1000).state).toBe('mismatch');
     const w = new GroupVerifier();
     w.markRequested([7], T);
-    w.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], ['29.2'], T);
+    w.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], ['29.2'], T, whole([20, 21, 22, 23, 24, 25, 26, 27, 28, 29], ['29.2']));
     expect(evalAt(w, T + 1000).state).toBe('mismatch');
   });
 
@@ -197,7 +241,7 @@ describe('GroupVerifier', () => {
     const v = new GroupVerifier();
     v.markRequested([7], T);
     expect(evalAt(v, T + REPLY_TIMEOUT_MS + 1).detail).toMatch(/did not answer/);
-    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T);
+    v.onChannels(7, [20, 21, 22, 23, 24, 25, 26, 27, 28, 29], [], T, whole([20, 21, 22, 23, 24, 25, 26, 27, 28, 29], []));
     v.invalidate();
     expect(evalAt(v, T + 5000).state).toBe('unverified');
     expect(v.needsRequest([7])).toEqual([7]);
@@ -228,6 +272,18 @@ describe('GO/BACK method selection (offline simulation)', () => {
     expect((await b.c.execute({ kind: 'go' }, 'operator')).osc).toEqual(['/eos/key/go_0 1', '/eos/key/go_0 0']);
     expect((await b.c.execute({ kind: 'back' }, 'operator')).osc).toEqual(['/eos/key/stopback 1', '/eos/key/stopback 0']);
     expect(b.c.status().goBack).toMatchObject({ method: 'keys', list: null });
+    b.c.shutdown();
+  });
+
+  it('limits which cue list GO/BACK may target', async () => {
+    const a = makeController((cfg) => { cfg.settings.connection.eosVersion = '3.3.10'; });
+    expect((await a.c.execute({ kind: 'go', list: 2 }, 'volunteer')).delivery).toBe('blocked');
+    expect((await a.c.execute({ kind: 'go', list: 2 }, 'operator')).osc).toEqual(['/eos/cues/2/fire']);
+    a.c.shutdown();
+    const b = makeController((cfg) => { cfg.settings.connection.eosVersion = '2.9.3'; });
+    const r = await b.c.execute({ kind: 'go', list: 2 }, 'operator');
+    expect(r).toMatchObject({ ok: false, delivery: 'error' });
+    expect(r.message).toMatch(/master playback/);
     b.c.shutdown();
   });
 
@@ -357,8 +413,12 @@ describe('Against a fake Eos 3.3 console (TCP 3037-style SLIP)', () => {
 
   it('runs the wizard single-channel test with every guard', async () => {
     const { c, store } = await connected();
+    expect((await c.execute({ kind: 'testConnection' }, 'volunteer')).ok).toBe(true);
+    expect(store.get().settings.commissioning.monitorTest).toBeNull(); // volunteers' tests aren't commissioning records
+    const backups = store.listBackups().length;
     expect((await c.execute({ kind: 'testConnection' }, 'operator')).ok).toBe(true);
     expect(store.get().settings.commissioning.monitorTest).toMatchObject({ ok: true, reportedVersion: '3.3.10.0' });
+    expect(store.listBackups().length).toBe(backups); // recording a result doesn't rotate real backups
     // Monitor mode: refused, and nothing reaches the console.
     expect((await c.execute({ kind: 'singleChannelTest', channel: 21, level: 50, confirmChannel: 21 }, 'operator')).delivery).toBe('blocked');
     await c.execute({ kind: 'setMode', mode: 'eos-live', confirm: true }, 'operator');

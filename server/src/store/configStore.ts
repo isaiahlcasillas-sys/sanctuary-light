@@ -81,16 +81,20 @@ export class ConfigStore {
 
   get(): AppConfig { return this.config; }
 
-  update<K extends SectionKey>(key: K, value: AppConfig[K]): AppConfig {
+  /** `backup: false` is for small automatic records (e.g. test results) so they can't push real backups out. */
+  update<K extends SectionKey>(key: K, value: AppConfig[K], opts: { backup?: boolean } = {}): AppConfig {
     const err = validateSection(key, value, this.config);
     if (err) throw new Error(err);
-    this.backup();
+    if (opts.backup !== false) this.backup();
     this.config = { ...this.config, [key]: value };
     this.writeFile(this.config);
     return this.config;
   }
 
-  replaceAll(next: AppConfig): AppConfig {
+  replaceAll(input: AppConfig): AppConfig {
+    // Backups from older versions are upgraded the same way as config files on startup.
+    const { config: next, notes } = migrateConfig(input, defaultConfig());
+    this.migrationNotes = notes;
     for (const key of Object.keys(next) as SectionKey[]) {
       const err = validateSection(key, next[key], next);
       if (err) throw new Error(`${key}: ${err}`);

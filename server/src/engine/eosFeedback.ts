@@ -20,7 +20,7 @@ export type FeedbackEvent =
   | { kind: 'cueListEntry'; list: number; label: string }
   | { kind: 'groupInfo'; group: number; label: string }
   /** One packet of a group's channel list; `argIndex` is its position in the full argument list. */
-  | { kind: 'groupChannels'; group: number; argIndex: number; channels: number[]; unparsed: string[] }
+  | { kind: 'groupChannels'; group: number; argIndex: number; argCount: number; total: number | null; channels: number[]; unparsed: string[] }
   | { kind: 'notify'; target: string }
   | { kind: 'count'; what: 'patch' | 'cuelist' | 'cue' | 'group'; list?: number; count: number }
   | { kind: 'other' };
@@ -45,9 +45,18 @@ export function parseCueText(text: string, now = Date.now()): CueFeedback {
   };
 }
 
-/** "/.../list/<arg index>/<arg count>" — returns the arg index, or null if the address has no list suffix. */
+/**
+ * OSC List Convention: "/.../list/<index>/<total>" where <index> is the zero-based offset of
+ * this packet's first argument in the entire list and <total> is the number of elements in
+ * the entire list (Eos manual, OSC Third-Party Integration).
+ */
 function listArgIndex(address: string): number | null {
   const m = address.match(/\/list\/(\d+)\/\d+$/);
+  return m ? Number(m[1]) : null;
+}
+
+function listTotal(address: string): number | null {
+  const m = address.match(/\/list\/\d+\/(\d+)$/);
   return m ? Number(m[1]) : null;
 }
 
@@ -149,7 +158,7 @@ export function parseFeedback(msg: OscMessage, now = Date.now()): FeedbackEvent 
     // Positions 0 and 1 of the full argument list are <list index> and <UID>.
     const values = v.filter((_, i) => idx + i >= 2);
     const { numbers, unparsed } = parseNumberList(values);
-    return { kind: 'groupChannels', group: Number(m[1]), argIndex: idx, channels: numbers, unparsed };
+    return { kind: 'groupChannels', group: Number(m[1]), argIndex: idx, argCount: v.length, total: listTotal(a), channels: numbers, unparsed };
   }
 
   return { kind: 'other' };

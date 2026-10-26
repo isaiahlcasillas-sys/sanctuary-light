@@ -212,7 +212,9 @@ export class Controller {
 
   /** "Group N" is only ever sent when the console has confirmed N matches and has no protected channels. */
   private groupAddressable(groupId: string): GroupVerification | null {
-    const v = this.groupVerification()[groupId];
+    const g = this.cfg.groups.find((x) => x.id === groupId);
+    if (!g || g.eosGroup == null) return null;
+    const v = this.groupVerifier.evaluate([g], this.cfg.fixtures)[groupId];
     return v?.state === 'verified' ? v : null;
   }
 
@@ -250,7 +252,7 @@ export class Controller {
 
   private recordCommissioning(patch: Partial<CommissioningRecord>) {
     const s = this.cfg.settings;
-    const next = this.store.update('settings', { ...s, commissioning: { ...s.commissioning, ...patch } });
+    const next = this.store.update('settings', { ...s, commissioning: { ...s.commissioning, ...patch } }, { backup: false });
     this.broadcast({ t: 'config', config: next });
   }
 
@@ -345,7 +347,7 @@ export class Controller {
         }
         break;
       case 'groupInfo': this.groupVerifier.onInfo(ev.group, ev.label); break;
-      case 'groupChannels': this.groupVerifier.onChannels(ev.group, ev.channels, ev.unparsed); break;
+      case 'groupChannels': this.groupVerifier.onChannels(ev.group, ev.channels, ev.unparsed, Date.now(), ev); break;
       case 'cueChanged': {
         this.seenCueFeedback = true;
         const key = ev.which === 'pending' ? 'pendingCue' : 'previousCue';
@@ -581,8 +583,15 @@ export class Controller {
       }
       case 'go':
       case 'back': {
-        const list = cmd.list ?? this.cfg.settings.masterCueList;
+        const master = this.cfg.settings.masterCueList;
+        const list = cmd.list ?? master;
+        if (list !== master && role !== 'operator') {
+          return { ok: false, delivery: 'blocked', message: `Volunteers can only GO/BACK the master cue list (${master}).` };
+        }
         const gb = this.goBackStatus(list);
+        if (gb.method === 'keys' && list !== master) {
+          return { ok: false, delivery: 'error', message: `GO/BACK use console keys on this Eos version, which act on the master playback — they can't target cue list ${list}.` };
+        }
         const go = cmd.kind === 'go';
         const label = `${go ? 'GO' : 'BACK'} ${gb.method === 'cue-list' ? `cue list ${list}` : '(master playback key)'}`;
         const build = () => gb.method === 'cue-list'
@@ -638,7 +647,8 @@ export class Controller {
         this.pushStatus();
         return { ok: true, delivery: 'simulated', message: 'Protected channels locked' };
       case 'testConnection':
-        return this.testConnection();
+        // Only an operator's test is recorded as a commissioning result.
+        return this.testConnection(role === 'operator');
       case 'syncFromConsole': {
         if (this.mode === 'offline' || !this.eos) return { ok: false, delivery: 'blocked', message: 'Connect in Monitor or Live mode first.' };
         if (this.connection().state !== 'connected') return { ok: false, delivery: 'error', message: 'Console is not responding yet.' };
@@ -655,7 +665,7 @@ export class Controller {
     return { ok: false, delivery: 'blocked', message: `Protected channel(s) ${list} (relays/utility). Unlock protected controls first.` };
   }
 
-  private async testConnection(): Promise<CommandResult> {
+  private async testConnection(record: boolean): Promise<CommandResult> {
     if (this.mode === 'offline' || !this.eos) {
       return { ok: false, delivery: 'blocked', message: 'Offline mode sends no network traffic. Switch to Ion Monitor to test the connection.' };
     }
@@ -672,12 +682,12 @@ export class Controller {
           for (let j = 0; j < 10 && !this.consoleVersion; j++) await new Promise((r) => setTimeout(r, 100));
         }
         const message = `Console replied in ${rx - sentAt} ms${this.consoleVersion ? ` (Eos ${this.consoleVersion})` : ''}.`;
-        this.recordCommissioning({ monitorTest: { at: Date.now(), ok: true, replyMs: rx - sentAt, reportedVersion: this.consoleVersion, detail: message } });
+        if (record) this.recordCommissioning({ monitorTest: { at: Date.now(), ok: true, replyMs: rx - sentAt, reportedVersion: this.consoleVersion, detail: message } });
         return { ok: true, delivery: 'sent', message };
       }
     }
     const message = 'No reply within 3 s. Check IP, ports, transport and that OSC RX/TX are enabled on the console.';
-    this.recordCommissioning({ monitorTest: { at: Date.now(), ok: false, replyMs: null, reportedVersion: null, detail: message } });
+    if (record) this.recordCommissioning({ monitorTest: { at: Date.now(), ok: false, replyMs: null, reportedVersion: null, detail: message } });
     return { ok: false, delivery: 'error', message };
   }
 
