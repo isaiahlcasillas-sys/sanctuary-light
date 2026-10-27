@@ -16,6 +16,8 @@ Sanctuary Light is tested a lot. **Almost all of that testing is against simulat
 | Windows install, supervisor, crash recovery | GitHub's Windows Server runner | CI smoke test | Partly: same Windows family, not the sanctuary PC |
 | Design workspace, Look Designer, look library, simulated crossfades, Volunteer Mode | Sample setup, Chromium at 1920×1080, 1366×768, 1024×768 and 768×1024 | Browser tests (screenshots in `docs/screenshots/phase4a/`), automated tests (`phase4a.test.ts`) | No |
 | New inspector drives Eos as before: SIM preview, Monitor blocked, Live sends `Chan 1 At Full` | FAKE console | Browser test | No |
+| Apply to Eos: exact commands, skipped/omitted channels, Monitor and SIM send nothing, refusals (volunteer, unverified, show changed, unknown channel, stale), interruption, partial failure, overlap | FAKE console | Automated tests (`phase4b.test.ts`) and browser test | **No** |
+| Record to Eos: preconditions, never overwrite, read-back confirmation | FAKE console (nobody presses Record on it) | Automated tests and browser test | **No** |
 | Real install → uninstall; an unrelated program keeps running; settings kept | GitHub's Windows Server runner | CI | Partly: not the sanctuary PC, no Eos or USB key present, and the start-at-sign-in task can't be observed without an interactive sign-in |
 | Test suite can't reach Eos ports (3032, 3036, 3037, 8000, 8001) | Guard in every test run, plus its own test | Automated tests | It protects the real PC during install; it says nothing about Eos |
 | First launch → import → import report → same-PC Monitor connection → verification | FAKE Eos 3.3 on 127.0.0.1, sample CSV, Chromium | Browser test (screenshots `docs/screenshots/first-launch-welcome.png`, `setup-import-report.png`, `setup-connect-same-pc.png`, `setup-verify-same-pc.png`) | No |
@@ -34,6 +36,9 @@ Nothing below has been confirmed yet. Add a row only with evidence from the sanc
 | | Show Verification against the real console | | | | |
 | | Groups verified against the real console | | | | |
 | | Supervised single-channel live test | | | | |
+| | **Live look test:** a designed look applied to one fixture through Eos (Setup → Supervised testing) | | | | |
+| | Fade sent as Eos manual time (`At … Time …`) | | | | |
+| | Record to Eos (assisted): cue recorded on Eos and confirmed by read-back | | | | |
 | | Gadget II / wireless DMX / SceneStation behaviour when Eos stops | | | | |
 
 Until these rows are filled in, **real console compatibility is unconfirmed.**

@@ -8,7 +8,7 @@
  *   5. reports back exactly which of those happened.
  */
 import {
-  MAX_FADE_SECONDS, MODE_INFO, clamp, compareShow, interpolateState, lookLevels, eosCapabilities, fingerprint, localFingerprint, outdatedWarnings, parseEosVersion, readState, volunteerCanUseLook, volunteerCanUseSub, volunteerPlaybackBlock,
+  APPLY_COMMAND_GAP_MS, MAX_FADE_SECONDS, MODE_INFO, clamp, describeApply, isSimulatedConsole, planLiveLook, type ApplyReport, compareShow, interpolateState, lookLevels, eosCapabilities, fingerprint, localFingerprint, outdatedWarnings, parseEosVersion, readState, volunteerCanUseLook, volunteerCanUseSub, volunteerPlaybackBlock,
   type ConsoleSnapshot, type FirstConnectionRecord, type VerificationReport,
   type CommissioningRecord, type GoBackStatus, type GroupVerification,
   type AppConfig, type Capability, type Command, type CommandResult, type CueFeedback, type FeedbackCapability,
@@ -90,6 +90,10 @@ export class Controller {
   private simFade: NodeJS.Timeout | null = null;
   /** A simulated look crossfade in progress (Offline Simulation only). */
   private lookFade: NodeJS.Timeout | null = null;
+  /** An Apply to Eos is sending; a second one is refused rather than interleaved. */
+  private applyBusy = false;
+  /** What the last Apply to Eos did (for the operator's report). */
+  lastApply: ApplyReport | null = null;
   /** The look most recently played (shown as "now" in Volunteer Mode). */
   activeLook: { id: string; name: string; at: number } | null = null;
   private statusTimer: NodeJS.Timeout;
@@ -304,7 +308,7 @@ export class Controller {
     }
   }
 
-  private recordCommissioning(patch: Partial<CommissioningRecord>): boolean {
+  recordCommissioning(patch: Partial<CommissioningRecord>): boolean {
     const s = this.cfg.settings;
     try {
       const next = this.store.update('settings', { ...s, commissioning: { ...s.commissioning, ...patch } }, { backup: false });
@@ -709,6 +713,8 @@ export class Controller {
         });
         return res;
       }
+      case 'applyLook':
+        return this.applyLook(cmd.lookId, cmd.fadeSeconds ?? null, cmd.confirm, role);
       case 'fireCue': {
         // Volunteers may only fire a cue an operator has approved through a volunteer look.
         if (role === 'volunteer' && !this.cfg.looks.some((l) => l.action.type === 'cue' && l.action.list === cmd.list && Number(l.action.cue) === Number(cmd.cue) && volunteerCanUseLook(l))) {
@@ -796,6 +802,169 @@ export class Controller {
         return r.ok ? { ...r, message: 'Reading patch and cue lists from the console… results appear in Settings → Patch.' } : r;
       }
     }
+  }
+
+  // ───────────────────────────── Apply to Eos ─────────────────────────────
+
+  /**
+   * Why a designed look can't be applied to Eos right now (null = it can). Server-enforced:
+   * Live mode armed, Eos answering, a real show imported and verified against THIS console in
+   * this session, nothing changed since, and every channel seen in the console's patch.
+   */
+  liveApplyBlock(lookId?: string): string | null {
+    if (this.mode !== 'eos-live') return this.mode === 'offline'
+      ? 'Apply to Eos needs Live mode. In SIM, use Preview: it only changes the stage picture.'
+      : 'Apply to Eos needs Live mode. Monitor mode can only listen.';
+    const conn = this.connection();
+    if (!this.eos || conn.state !== 'connected' || this.isStale(conn)) return 'Eos is not answering, so nothing can be sent. Use Eos directly.';
+    if (!this.cfg.eosShow) return 'Import your Eos show first: the sample patch can\'t be trusted on real lights.';
+    const v = this.cfg.verification;
+    if (!v) return 'Verify with Eos first (Setup → Verify with Eos): the imported patch must be compared with the running show.';
+    if (v.simulatedConsole && !isSimulatedConsole(this.showName)) return 'The last verification was against the FAKE simulator. Verify against this console first.';
+    if (v.summary.different + v.summary['missing-in-eos'] > 0) return `The last verification found ${v.summary.different + v.summary['missing-in-eos']} difference(s) with Eos. Fix them and verify again.`;
+    if (v.showName && this.showName && v.showName !== this.showName) return `Eos now has “${this.showName}” loaded, but Sanctuary Light was verified against “${v.showName}”. Verify again.`;
+    const warnings = outdatedWarnings(this.cfg, { showName: this.showName, consoleChangedAt: this.consoleChangedAt, connected: true }, null);
+    if (warnings.length) return `${warnings[0]} Verify again before applying looks.`;
+    const patch = this.syncResult?.patch;
+    if (!patch?.length) return 'Read the patch from Eos in this session first (Setup → Verify with Eos → Read from Eos).';
+    if (lookId) {
+      const look = this.cfg.looks.find((l) => l.id === lookId);
+      if (!look) return 'Unknown look.';
+      const onConsole = new Set(patch.map((p) => p.channel));
+      const missing = (look.fixtures ?? []).map((s) => s.channel).filter((c) => !onConsole.has(c));
+      if (missing.length) return `Channel(s) ${missing.slice(0, 8).join(', ')} weren't in the patch Eos reported. Nothing was sent.`;
+    }
+    return null;
+  }
+
+  private async applyLook(lookId: string, fadeSeconds: number | null, confirm: boolean, role: Role): Promise<CommandResult> {
+    if (role !== 'operator') return { ok: false, delivery: 'blocked', message: 'Only an operator can apply a look to Eos. New looks aren\'t available to volunteers until approved and tested.' };
+    if (!confirm) return { ok: false, delivery: 'blocked', message: 'Applying a look to Eos needs confirmation.' };
+    const look = this.cfg.looks.find((l) => l.id === lookId);
+    if (!look) return { ok: false, delivery: 'error', message: 'Unknown look' };
+    const why = this.liveApplyBlock(lookId);
+    if (why) return { ok: false, delivery: 'blocked', message: why };
+    if (this.applyBusy) return { ok: false, delivery: 'blocked', message: 'Another Apply to Eos is still sending. Wait for it to finish.' };
+    const plan = planLiveLook(this.cfg, look, { fadeSeconds });
+    if (plan.errors.length) return { ok: false, delivery: 'error', message: plan.errors.join(' ') };
+
+    this.applyBusy = true;
+    this.stopLookFade();
+    const b = this.builder();
+    const report: ApplyReport = {
+      lookId: look.id, lookName: look.name, at: Date.now(), sent: [], failed: [], notSent: [],
+      skipped: plan.skipped, omitted: plan.omitted, fadeSeconds: plan.fadeSeconds, confirmation: 'not-confirmed',
+    };
+    try {
+      for (let i = 0; i < plan.commands.length; i++) {
+        const c = plan.commands[i];
+        // Stop at once if anything changed: no command is ever sent outside armed Live, or late.
+        const eos = this.eos;
+        const stop = this.mode !== 'eos-live' ? 'Live mode was switched off'
+          : !eos || this.connection().state !== 'connected' || this.isStale() ? 'Eos stopped answering' : null;
+        if (stop || !eos) { report.notSent.push(...plan.commands.slice(i).map((x) => ({ text: x.text, reason: stop ?? 'Eos stopped answering' }))); break; }
+        try {
+          eos.transmit(b.levelCommand(c.text));
+          report.sent.push(c.text);
+          this.setLevelsCommanded(c.channels, c.level);
+        } catch (e) {
+          report.failed.push({ text: c.text, error: (e as Error).message });
+        }
+        if (i < plan.commands.length - 1) await new Promise((r) => setTimeout(r, APPLY_COMMAND_GAP_MS));
+      }
+    } finally {
+      this.applyBusy = false;
+    }
+    this.lastApply = report;
+    this.activeLook = { id: look.id, name: look.name, at: report.at };
+    const message = describeApply(report);
+    this.log(report.failed.length || report.notSent.length ? 'warn' : 'info', `Apply to Eos: ${message}${report.sent.length ? ` Sent: ${report.sent.join(' | ')}` : ''}`);
+    this.pushStatus();
+    const ok = report.sent.length > 0 && !report.failed.length && !report.notSent.length;
+    return { ok, delivery: report.sent.length ? 'sent' : 'error', message, osc: report.sent.map((t) => `/eos/newcmd "${t}"`), report };
+  }
+
+  // ───────────────────────────── Record to Eos (operator-assisted) ─────────────────────────────
+
+  /**
+   * Check that a look may be recorded into Eos as a new cue, and return the exact keystrokes
+   * the operator presses on Eos. Sanctuary Light doesn't press Record itself yet: recording
+   * changes the show, and how Record captures manual data, tracking and existing cue data
+   * must first be verified on our console. Nothing is sent by this check.
+   */
+  recordPlan(req: { lookId: string; list: number; cue: string; label: string; fadeSeconds: number | null }): { ok: true; steps: string[]; warnings: string[] } | { ok: false; error: string } {
+    const look = this.cfg.looks.find((l) => l.id === req.lookId);
+    if (!look) return { ok: false, error: 'Unknown look.' };
+    const why = this.liveApplyBlock(look.id);
+    if (why) return { ok: false, error: why };
+    const fc = this.cfg.settings.commissioning.firstConnection;
+    if (!fc?.showBackedUpAt || new Date(fc.showBackedUpAt).toDateString() !== new Date().toDateString()) {
+      return { ok: false, error: 'Back up the Eos show today first (File → Save, then Save As to a USB stick), then tick it in Setup → Supervised testing.' };
+    }
+    if (!Number.isInteger(req.list) || req.list < 1 || req.list > 999) return { ok: false, error: 'Choose a cue list number.' };
+    if (!/^\d{1,4}(\.\d{1,3})?$/.test(req.cue)) return { ok: false, error: 'Cue numbers look like 105 or 105.5.' };
+    const label = req.label.trim();
+    if (label.length > 40 || /["#\\]/.test(label)) return { ok: false, error: 'Keep the label to 40 characters, without quotes, # or backslashes.' };
+    const read = this.read ? readState(this.consoleSnapshot()) : 'not-read';
+    if (read !== 'complete') return { ok: false, error: 'Read the cue lists from Eos first (Setup → Verify with Eos → Read from Eos), so Sanctuary Light can check the cue number is free.' };
+    const lists = this.syncResult?.cueLists ?? [];
+    const list = lists.find((l) => l.list === req.list);
+    if (!list) return { ok: false, error: `Cue list ${req.list} wasn't found on the console. Choose an existing cue list (${lists.map((l) => l.list).join(', ') || 'none read'}).` };
+    if (list.cues.some((q) => Number(q.cue) === Number(req.cue))) return { ok: false, error: `Cue ${req.list}/${req.cue} already exists in Eos. Sanctuary Light never overwrites a cue: choose a free number.` };
+    const plan = planLiveLook(this.cfg, look, {});
+    const q = `${req.list}/${req.cue}`;
+    const steps = [
+      `In Sanctuary Light: Apply “${look.name}” to Eos and check the stage looks right. (${plan.commands.length} level command(s); ${plan.skipped.length} fixture(s) skipped${plan.omitted.length ? `; color and other parameters aren't sent yet` : ''}.)`,
+      `On Eos, record only the manual changes into the new cue: [Record Only] [Cue] ${req.list} [/] ${req.cue} [Enter]`,
+      ...(label ? [`Label it: [Cue] ${q} [Label] ${label} [Enter]`] : []),
+      ...(req.fadeSeconds && req.fadeSeconds > 0 ? [`Set its time: [Cue] ${q} [Time] ${Math.round(req.fadeSeconds * 10) / 10} [Enter]`] : []),
+      'Back in Sanctuary Light, press “Check Eos for the new cue”. It reads the cue list back from Eos; only then is the cue shown as recorded.',
+    ];
+    const warnings = [
+      'Recording changes the show loaded in Eos.',
+      'Record Only stores the channels you changed by hand (manual values). If other channels were also changed by hand on Eos, they are stored too: check the Eos command line and Live display first.',
+      'If the show is in Track mode, these levels track into the following cues until something changes them. Ask the console person whether this cue should be Cue Only.',
+      'Sanctuary Light never presses Record, Update or Delete on Eos itself.',
+    ];
+    return { ok: true, steps, warnings };
+  }
+
+  /**
+   * Confirm a recorded cue by reading the cue list back from Eos (read-only). Only a cue Eos
+   * reports is called recorded. On success the look remembers which cue it was recorded into.
+   */
+  async recordVerify(req: { lookId: string; list: number; cue: string; label: string }, timeoutMs = 12000): Promise<{ status: 'confirmed' | 'label-differs' | 'not-found' | 'read-incomplete' | 'error'; message: string }> {
+    const look = this.cfg.looks.find((l) => l.id === req.lookId);
+    if (!look) return { status: 'error', message: 'Unknown look.' };
+    const r = this.syncFromConsoleRead();
+    if (!r.ok) return { status: 'error', message: r.message };
+    const end = Date.now() + timeoutMs;
+    while (readState(this.consoleSnapshot()) !== 'complete') {
+      if (Date.now() > end || readState(this.consoleSnapshot()) === 'incomplete') return { status: 'read-incomplete', message: 'Eos didn\'t finish answering the cue-list read. Nothing is confirmed. Try again.' };
+      await new Promise((res) => setTimeout(res, 100));
+    }
+    const q = this.syncResult?.cueLists.find((l) => l.list === req.list)?.cues.find((c) => Number(c.cue) === Number(req.cue));
+    if (!q) return { status: 'not-found', message: `Eos doesn't report cue ${req.list}/${req.cue}. It hasn't been recorded (or was recorded somewhere else).` };
+    const want = req.label.trim().toLowerCase();
+    if (want && q.label.trim().toLowerCase() !== want) {
+      return { status: 'label-differs', message: `Eos reports cue ${req.list}/${req.cue}, labelled “${q.label || 'no label'}” (expected “${req.label}”). Check it on Eos.` };
+    }
+    try {
+      const next = this.store.update('looks', this.cfg.looks.map((l) => (l.id === look.id ? { ...l, eosCue: { list: req.list, cue: q.cue, label: q.label, verifiedAt: Date.now() } } : l)));
+      this.broadcast({ t: 'config', config: next });
+    } catch (e) { return { status: 'error', message: `Eos reports the cue, but saving that here failed: ${(e as Error).message}` }; }
+    this.log('info', `Record to Eos: Eos reports cue ${req.list}/${q.cue} “${q.label}” for look “${look.name}” (read back).`);
+    return { status: 'confirmed', message: `Eos reports cue ${req.list}/${q.cue}${q.label ? ` “${q.label}”` : ''}. The cue exists; its levels can't be read over OSC, so check them on Eos.` };
+  }
+
+  /** Show what was commanded on the stage (not confirmed: Eos doesn't report levels back). */
+  private setLevelsCommanded(channels: number[], level: number) {
+    for (const f of this.cfg.fixtures) {
+      if (!channels.includes(f.channel)) continue;
+      this.levels[f.channel] = { ...(this.levels[f.channel] ?? { intensity: 0 }), intensity: level };
+      this.sources[f.channel] = 'commanded';
+    }
+    this.markLevelsDirty();
   }
 
   // ───────────────────────────── show verification ─────────────────────────────

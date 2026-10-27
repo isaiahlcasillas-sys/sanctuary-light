@@ -651,3 +651,27 @@ label.field > span { font-weight: 600; letter-spacing: 0.02em; }
   .vol-nownext, .vol-goback { grid-template-columns: 1fr; }
   .vol-look-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 }
+
+/* ═════════════ Phase 4B: Apply / Record to Eos ═════════════ */
+.live-warning { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: rgba(244, 63, 94, 0.14); border: 1px solid rgba(244, 63, 94, 0.55); color: #fecdd3; font-size: 13px; margin-bottom: 10px; }
+.dlg-h { margin: 12px 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.cmd-list { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.cmd-list code, .reason-list code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); }
+.reason-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; font-size: 12.5px; color: var(--text-2); }
+.reason-list li { display: flex; gap: 6px; align-items: flex-start; }
+.reason-list svg { flex-shrink: 0; margin-top: 2px; }
+.warn-list { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: rgba(251, 191, 36, 0.08); border: 1px solid rgba(251, 191, 36, 0.35); list-style: disc; padding-left: 26px; display: block; }
+.warn-list li { display: list-item; margin: 3px 0; }
+.param-note.ok { border-color: rgba(52, 211, 153, 0.5); background: rgba(52, 211, 153, 0.1); color: #a7f3d0; }
+.restore-box { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); font-size: 13px; }
+.restore-box ol { margin: 6px 0; padding-left: 20px; }
+.record-steps { margin: 8px 0 12px; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
+.apply-btn:not(:disabled) { color: #fecdd3; border-color: rgba(244, 63, 94, 0.6); background: rgba(244, 63, 94, 0.12); }
+.look-card-main { overflow: hidden; }
+.look-card-live, .look-card-cue { position: absolute; left: 6px; top: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 999px; }
+.look-card-live { background: var(--live); color: white; }
+.look-card-cue { background: rgba(52, 211, 153, 0.85); color: #022c22; top: auto; bottom: 6px; }
+.live-test { border-color: rgba(244, 63, 94, 0.4); }
+.live-test h3 { margin: 0 0 4px; }
+.workflow-mini { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 10px; font-size: 13.5px; }
+.workflow-mini code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); }

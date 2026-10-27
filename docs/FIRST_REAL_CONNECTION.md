@@ -32,6 +32,8 @@
 
 Record real results in [TESTING_EVIDENCE.md](TESTING_EVIDENCE.md).
 
+**Live look test (Phase 4B):** below the checklist, the **Live look test** box applies a look designed in Sanctuary Light to the same approved fixture through Eos, and records what the room observer saw. Step-by-step: [LIVE_LOOKS.md](LIVE_LOOKS.md#todays-test-at-the-sanctuary-pc).
+
 **After the test:**
 - Keep Sanctuary Light in **Monitor** for a whole service ("shadow Sunday") before any Live use in worship.
 - Approve worship looks one by one (Setup → Worship looks), each after watching it in the room.

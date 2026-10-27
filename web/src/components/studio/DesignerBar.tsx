@@ -1,7 +1,7 @@
 /**
  * The Look Designer's bar above the stage: name, collection, fade time, preview and save.
  * Saving writes a LOCAL look in Sanctuary Light. Nothing is recorded in Eos, and a local look
- * never becomes a live lighting command.
+ * only reaches the real lights through the separate Apply to Eos action (LIVE, server-checked).
  */
 import { useState } from 'react';
 import { CopyPlus, Palette, PlayCircle, Save, X } from 'lucide-react';
