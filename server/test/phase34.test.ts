@@ -157,6 +157,8 @@ describe('Show Verification against the FAKE console (simulated)', () => {
     expect(r.summary.different + r.summary['missing-in-eos'] + r.summary['extra-in-eos']).toBe(0);
     expect(r.items.filter((i) => i.section === 'patch').every((i) => i.status === 'match')).toBe(true);
     expect(r.items.find((i) => i.key.startsWith('Group 1'))!.status).toBe('match');
+    // The record is saved once every group has answered (or 5 s later): wait for it, not for one group.
+    await until(() => store.get().verification !== null, 8000);
     expect(store.get().verification).toMatchObject({ showName: 'Sunday Worship', simulatedConsole: false });
     expect(c.mode).toBe('eos-monitor');
     c.shutdown();
