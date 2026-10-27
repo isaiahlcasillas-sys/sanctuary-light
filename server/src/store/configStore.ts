@@ -114,15 +114,15 @@ export class ConfigStore {
     return this.config;
   }
 
+  hasDailySnapshot(now = new Date()): boolean {
+    return fs.existsSync(path.join(this.backupDir, dailyName(now)));
+  }
+
   /**
    * Once per calendar day, keep a copy of the configuration (daily-YYYY-MM-DD.json),
    * retaining the last `keepDays`. Independent of the per-save backups, so a busy
    * editing session can never push out last week's known-good copy.
    */
-  hasDailySnapshot(now = new Date()): boolean {
-    return fs.existsSync(path.join(this.backupDir, dailyName(now)));
-  }
-
   dailySnapshot(now = new Date(), keepDays = 30): string | null {
     const name = dailyName(now);
     const target = path.join(this.backupDir, name);

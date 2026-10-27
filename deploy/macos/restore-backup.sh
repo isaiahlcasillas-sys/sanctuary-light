@@ -19,7 +19,17 @@ node -e '
 read -r -p "Replace the current configuration with $(basename "$SRC")? [y/N] " answer
 [[ "$answer" == "y" || "$answer" == "Y" ]] || { rm -f "$DATA/restore.tmp"; echo "Cancelled."; exit 0; }
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+# bootout finishes asynchronously; wait until the service is really gone.
+for _ in $(seq 1 20); do launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break; sleep 0.5; done
 [[ -f "$DATA/config.json" ]] && cp "$DATA/config.json" "$DATA/backups/pre-restore-$(date +%Y%m%d-%H%M%S).json"
 mv "$DATA/restore.tmp" "$DATA/config.json"
-launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$LABEL.plist"
+started=0
+for _ in 1 2 3 4 5; do
+  if launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$LABEL.plist" 2>/dev/null; then started=1; break; fi
+  sleep 1
+done
+if (( ! started )); then
+  echo "Configuration restored, but the service did not restart. Open Sanctuary Light.app or log out and back in." >&2
+  exit 1
+fi
 echo "Restored. The app restarted in Offline Simulation; older formats are upgraded automatically."

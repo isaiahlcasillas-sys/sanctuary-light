@@ -9,7 +9,14 @@ LABEL="org.ltumc.sanctuary-light"
 DATA="$HOME/Library/Application Support/Sanctuary Light"
 cd "$REPO"
 
-health="$(curl -fsS --max-time 3 http://127.0.0.1:4700/api/health 2>/dev/null || true)"
+PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+# Use the port the service was installed with (install.sh --port), not an assumption.
+PORT="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PORT' "$PLIST" 2>/dev/null || echo 4700)"
+health="$(curl -fsS --max-time 3 "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)"
+if [[ -z "$health" ]] && launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null | grep -q "state = running"; then
+  echo "The service is running but not answering on port $PORT, so its mode can't be confirmed. Not updating." >&2
+  exit 1
+fi
 if [[ -n "$health" && "$health" != *'"mode":"offline"'* ]]; then
   echo "Sanctuary Light is connected to the Ion (Monitor or Live). Switch to SIM first, outside a service." >&2
   exit 1
@@ -28,7 +35,8 @@ if [[ "$(git rev-parse HEAD)" == "$PREV" ]]; then echo "Already up to date."; ex
 
 rollback() {
   echo "Update failed — returning to the previous version ($PREV)." >&2
-  git checkout -q "$PREV"
+  # reset (not checkout) keeps the branch, so the next update can still `git pull`.
+  git reset -q --hard "$PREV"
   npm ci && npm run build
   echo "Rolled back. The app was not restarted, so it keeps running the old version." >&2
   exit 1

@@ -25,8 +25,8 @@ section "Node.js"
 NODE="$(command -v node || true)"
 if [[ -z "$NODE" ]]; then bad "Node.js not found. Install Node 22 LTS from nodejs.org (macOS Installer, ARM64)."; else
   echo "  $NODE · $("$NODE" -v) · $("$NODE" -p process.arch)"
-  major="$("$NODE" -p 'process.versions.node.split(".")[0]')"
-  (( major >= 20 )) && ok "Node version OK" || bad "Node is too old; install Node 22 LTS"
+  # package.json requires Node >= 20.19
+  if "$NODE" -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>20||(a===20&&b>=19)?0:1)'; then ok "Node version OK"; else bad "Node is too old (needs 20.19+); install Node 22 LTS"; fi
   case "$NODE" in *"/.nvm/"*|*"/.volta/"*|*"/.asdf/"*|*"fnm"*) warn "Node comes from a version manager; prefer the nodejs.org installer for the booth Mac" ;; esac
   [[ "$("$NODE" -p process.arch)" == "$(uname -m)" ]] && ok "Node runs natively" || warn "Node runs under Rosetta; install the native build"
 fi
@@ -46,11 +46,16 @@ if [[ ! -f "$PLIST" ]]; then bad "Not installed ($PLIST missing). Run ./deploy/m
   prog2="$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:2' "$PLIST" 2>/dev/null)"
   [[ -x "$prog0" ]] && ok "Node path in service exists ($prog0)" || bad "Node path in service is missing ($prog0) — rerun install.sh"
   [[ -f "$prog2" ]] && ok "App path in service exists" || bad "App path in service is missing ($prog2) — was the folder moved? Rerun install.sh"
-  if /usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:HOST' "$PLIST" >/dev/null 2>&1; then
-    warn "Network access is ON (--lan): other devices on this network can open Sanctuary Light. Use only on an isolated lighting network."
-  else ok "Network access is OFF: only this Mac can open Sanctuary Light"; fi
+  PORT="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:PORT' "$PLIST" 2>/dev/null || echo "$PORT")"
   if launchctl print "gui/$(id -u)/$LABEL" 2>/dev/null | grep -q "state = running"; then ok "Service is running"; else bad "Service is not running — open Sanctuary Light.app or check the log"; fi
 fi
+
+section "Network exposure"
+# Check what the server is ACTUALLY listening on (install --lan or Settings → "Localhost only" off).
+listen="$(lsof -nP -iTCP:"$PORT" -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9}' | sort -u | tr '\n' ' ')"
+if [[ -z "$listen" ]]; then warn "Nothing is listening on port $PORT (is the service running?)"
+elif [[ "$listen" == *"127.0.0.1:"* && "$listen" != *"*:"* ]]; then ok "Only this Mac can open Sanctuary Light ($listen)"
+else warn "Other devices on this network can open Sanctuary Light ($listen). Use only on an isolated lighting network."; fi
 
 section "App responds"
 health="$(curl -fsS --max-time 3 "http://127.0.0.1:$PORT/api/health" 2>/dev/null)"

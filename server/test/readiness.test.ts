@@ -146,3 +146,22 @@ describe('Stale connection', () => {
     eos.close();
   }, 20_000);
 });
+
+describe('Recovery is only recorded after a real loss', () => {
+  it('a console that was simply not up yet does not count as a recovery', async () => {
+    const port = await freePort();
+    const store = new ConfigStore(tmp());
+    const cfg = store.get();
+    Object.assign(cfg.settings.connection, { consoleIp: '127.0.0.1', eosVersion: '3.3.10', transport: 'tcp-1.1', tcpPort: port });
+    store.replaceAll(cfg);
+    const c = new Controller(store, () => {}, () => false);
+    await c.execute({ kind: 'setMode', mode: 'eos-monitor' }, 'operator');   // Ion not booted yet
+    await until(() => c.status().connection.state === 'disconnected' || c.status().connection.state === 'error');
+    const eos = await startFakeEos({ slipPort: port, lengthPort: 0, quiet: true });   // Ion comes up
+    await until(() => c.status().connection.state === 'connected' && !c.status().connection.stale, 10_000);
+    await wait(1500);
+    expect(store.get().settings.commissioning.recoveryObservedAt).toBeNull();
+    c.shutdown();
+    eos.close();
+  }, 20_000);
+});

@@ -254,7 +254,9 @@ export class Controller {
     return `Console reports Eos ${this.consoleVersion}, but Settings say ${this.cfg.settings.connection.eosVersion}. Update the version in the Setup Wizard.`;
   }
 
-  /** True after the console was lost (disconnected, error, or stale) while an engine was running. */
+  /** The console answered and was healthy at least once since this engine started. */
+  private hadHealthyConnection = false;
+  /** True after a healthy connection was later lost (disconnected, error, or stale). */
   private connectionWasLost = false;
 
   /**
@@ -262,11 +264,15 @@ export class Controller {
    * the console. Bookkeeping only — it never sends anything.
    */
   private watchRecovery() {
-    if (this.mode === 'offline' || !this.eos) { this.connectionWasLost = false; return; }
-    const s = this.status().connection;
-    const down = s.state === 'disconnected' || s.state === 'error' || (s.state === 'connected' && s.stale);
-    if (down) { this.connectionWasLost = true; return; }
-    if (this.connectionWasLost && s.state === 'connected' && !s.stale) {
+    if (this.mode === 'offline' || !this.eos) { this.hadHealthyConnection = this.connectionWasLost = false; return; }
+    const state = this.connection().state;
+    const stale = this.isStale();
+    const healthy = state === 'connected' && !stale && this.connection().lastRxAt != null;
+    // Only a loss *after* a healthy connection counts: a failed first attempt (e.g. the Ion
+    // still booting) is not a recovery.
+    if (!healthy) { if (this.hadHealthyConnection) this.connectionWasLost = true; return; }
+    this.hadHealthyConnection = true;
+    if (this.connectionWasLost) {
       this.connectionWasLost = false;
       this.log('info', 'Console connection recovered automatically.');
       this.recordCommissioning({ recoveryObservedAt: Date.now() });
@@ -300,6 +306,7 @@ export class Controller {
   }
 
   private stopEngine() {
+    this.hadHealthyConnection = this.connectionWasLost = false;
     this.limiter.clear();
     this.eos?.stop();
     this.eos = null;
@@ -484,11 +491,23 @@ export class Controller {
         }
         // A stale connection may be half-open: bytes written now could be delivered much later
         // when the link recovers. Refuse instead, so nothing is ever replayed late.
+        // Live requires two-way contact: a console that never answers can't be confirmed to exist.
         if (this.isStale()) {
-          return { ok: false, delivery: 'error', message: 'The Ion has not answered recently (connection stale) — nothing was sent. Use the Ion directly if needed.', osc };
+          const never = this.connection().lastRxAt == null;
+          return {
+            ok: false, delivery: 'error', osc,
+            message: never
+              ? 'The Ion has not answered at all on this connection — nothing was sent. Check that OSC RX and TX are on in the Ion\'s Show Control settings, and the port/format.'
+              : 'The Ion has not answered recently (connection stale) — nothing was sent. Use the Ion directly if needed.',
+          };
         }
         const send = () => {
-          if (this.isStale()) { this.log('warn', `${description}: not sent — connection went stale.`); return; }
+          if (this.isStale()) {
+            const message = `${description}: NOT sent — the Ion stopped answering before it could go out.`;
+            this.log('warn', message);
+            this.broadcast({ t: 'notice', level: 'error', message });
+            return;
+          }
           try { eos.transmit(msgs); }
           catch (e) { this.log('error', `${description}: ${(e as Error).message}`); }
         };
