@@ -16,7 +16,7 @@ Eos stays the lighting engine and the fallback. Sanctuary Light sends it command
 |---|---|
 | ![Volunteer](docs/screenshots/volunteer.png) | ![Operator](docs/screenshots/operator.png) |
 
-> **Status: Phase 3.3 (Import Eos Show) on top of the Windows 11 deployment next to ETCnomad. Tested only against a *fake* Eos console**, with CI on Windows (x64), Linux and Apple Silicon macOS.
+> **Status: Phase 3.4 (Sanctuary Setup: review, arrange, worship looks, Show Verification, First Real Connection) on top of Import Eos Show and the Windows 11 deployment next to ETCnomad. Tested only against a *fake* Eos console**, with CI on Windows (x64), Linux and Apple Silicon macOS.
 > The app has **not** been connected to the real Eos system yet. On-site commissioning uses the built-in **Eos Setup Wizard**; see [`docs/START_HERE.md`](docs/START_HERE.md) and [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md). The sample patch, groups, looks and cue labels are placeholders built from the preliminary channel groupings. Nothing in them has been checked against the real show file.
 
 ---
@@ -55,7 +55,7 @@ The service starts at login, restarts after a crash, keeps the Mac awake, and ma
 
 ```bash
 npm run dev          # server on :4700 (auto-restart) + UI on http://localhost:5173
-npm test             # ~125 tests: OSC codec/framing, Eos commands, version rules, group safety, wizard guards, recovery, Eos show import
+npm test             # ~150 tests: OSC codec/framing, Eos commands, version rules, group safety, wizard guards, recovery, Eos show import
 npm run typecheck
 ```
 
@@ -97,6 +97,9 @@ Looks are labelled **Local look · preview only** (stored in Sanctuary Light) or
 | Document | Contents |
 |---|---|
 | [`docs/START_HERE.md`](docs/START_HERE.md) | Hardware-testing roadmap for the Technical Arts Director |
+| [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md) | The Setup workflow: review fixtures, arrange the stage, worship looks and approval, Show Verification |
+| [`docs/FIRST_REAL_CONNECTION.md`](docs/FIRST_REAL_CONNECTION.md) | The supervised 7-step first connection on the sanctuary PC |
+| [`docs/TESTING_EVIDENCE.md`](docs/TESTING_EVIDENCE.md) | What was tested in simulation vs. confirmed on the real system |
 | [`docs/IMPORT_EOS_SHOW.md`](docs/IMPORT_EOS_SHOW.md) | Import your Eos show: export steps, preview, merge/replace, what's imported and what isn't |
 | [`docs/INSTALL_WINDOWS.md`](docs/INSTALL_WINDOWS.md) | Step-by-step Windows 11 install next to ETCnomad, update, uninstall, restore, troubleshooting |
 | [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md) | Same-PC architecture, startup and recovery, failure modes, what's verified |
@@ -169,6 +172,16 @@ web/src/           React + TypeScript UI (Radix UI primitives, Zustand, lucide i
 docs/              EOS_OSC.md (implemented commands + Eos setup), PHASE5_DIRECT_DMX.md
 ```
 
+## Sanctuary Setup
+
+**Setup** (top bar, operator) is the guided path: **Import my Eos show → Review fixtures → Arrange sanctuary → Worship looks → Verify with Eos → Supervised testing**. See [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md).
+
+- **Show Verification** compares the configuration with what Eos actually reports (read-only, Monitor mode). It shows matches, differences, missing/extra channels, cue-list differences and unverified groups, and warns when the show in Eos changes afterwards.
+- **Looks that trigger Eos need an operator's approval** before Volunteer Mode shows them. Volunteers can only fire approved cues.
+- **First Real Connection** is a 7-step supervised checklist for the sanctuary PC ([`docs/FIRST_REAL_CONNECTION.md`](docs/FIRST_REAL_CONNECTION.md)).
+
+![Show Verification](docs/screenshots/setup-verify.png)
+
 ## Import Eos Show
 
 **Import Eos Show** (top bar, operator) turns an Eos **CSV** or **USITT ASCII** export into your Sanctuary Light setup. Drop the file in, preview everything (fixtures, groups, cue lists, presets and palettes, subs, conflicts, and anything not interpreted), choose Merge or Replace, then import and arrange the stage. It's an offline, read-only file import: nothing is sent to Eos, nothing changes in the show, and the previous setup is backed up with one-click undo. Native `.esf` files are recognised, with instructions to export instead. See [`docs/IMPORT_EOS_SHOW.md`](docs/IMPORT_EOS_SHOW.md).
@@ -186,6 +199,7 @@ On Eos 2.0+ you can also use *Settings → Connection → Read patch & cues from
 1. **Phase 1, visual prototype** ✅: stage editor, simulated beams, faders, color wheel, CCT, pan/tilt, beam, looks, cues, volunteer mode.
 2. **Phase 2, real ETC integration** ✅ *(code complete; awaiting on-site verification)*: OSC over UDP / TCP 1.0 / TCP 1.1, monitor and live modes, cue feedback, connection testing.
    **Phase 2.5, reliability and integration** ✅: version-aware port rules (corrected 3032/3037 guidance), cue-list GO/BACK, group verification against the console, config migration, and the Ion Setup Wizard. Next step: [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md) at church.
+   **Phase 3.4, Real sanctuary configuration and verification** ✅ *(simulation-tested; awaiting the sanctuary system)*: Setup workflow, Show Verification, volunteer approval, First Real Connection. See [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md).
    **Phase 3.3, Import Eos Show** ✅ *(tested with sample exports; awaiting the real show export)*: CSV and USITT ASCII import with preview, conflicts, backup/undo, and stage arranging. See [`docs/IMPORT_EOS_SHOW.md`](docs/IMPORT_EOS_SHOW.md).
    **Phase 3.2, Windows 11 primary deployment** ✅ *(CI-verified on Windows; awaiting the sanctuary PC)*: same-PC loopback OSC to ETCnomad, Windows installer, start-at-sign-in supervisor with crash recovery, desktop launcher, read-only health check. See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 3. **Phase 3, real sanctuary configuration**: import the actual Eos patch, set Eos group numbers, map looks to real cues and presets, and draw the real room.

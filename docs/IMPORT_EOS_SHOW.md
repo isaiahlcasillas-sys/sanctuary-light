@@ -55,7 +55,9 @@ Do this from the show that is **already loaded** in Eos. Exporting only writes a
 
 ## 3. Arrange your sanctuary
 
-An Eos export doesn't say *where* lights hang, so new fixtures are lined up along the bottom of the stage plan with a dashed highlight. Drag each one to its real position, then press **Save layout**. You can stop and continue later: the stage shows how many are left. Fixtures you had already placed keep their positions.
+An Eos export doesn't say *where* lights hang, so imported fixtures wait in a **Not yet placed** area below the stage plan and in the list on the Arrange screen. Drag each one onto the stage where it really hangs, then press **Save arrangement** ([SANCTUARY_SETUP.md](SANCTUARY_SETUP.md)).
+- **Keep stage positions I've already arranged** (import option) keeps positions for matching channel numbers. It's on when your setup came from an earlier Eos import, and off for a fresh install, so real fixtures never inherit the positions of sample fixtures.
+- **Replace** never borrows labels, types, addresses or positions from the setup it replaces. Only protections are kept.
 
 ## What gets imported, and how
 
@@ -67,8 +69,8 @@ An Eos export doesn't say *where* lights hang, so new fixtures are lined up alon
 | Relays / non-dims | Protected fixtures | Types or labels like *Relay*, *Non-Dim*, *Contactor* are protected automatically |
 | Groups | Groups with their Eos group number | Start **unverified**. Until you verify them in MONITOR, Live sends the channel list, never "Group N". |
 | Cue lists, cue numbers, labels, timing | Cue lists (labels and timing for reference) | Timing is shown exactly as exported (Time, Down, Focus/Color/Beam, delays, Follow, Link, Mark/Block/Assert) |
-| Labelled cues in one list you choose | **Looks that fire the real Eos cue** | No stage preview is invented. Hidden from volunteers until you choose them (Settings → Looks). Re-importing doesn't duplicate them. |
-| Submasters | Submasters | A sub that controls a protected channel is protected too |
+| Labelled cues in one list you choose | **Looks that fire the real Eos cue** | No stage preview is invented. Each one needs an operator's **review and approval** (Setup → Worship looks) before Volunteer Mode can show it. Re-importing doesn't duplicate them. |
+| Submasters | Submasters | A sub that controls a protected channel is protected too. Every imported sub needs an operator's approval before volunteers can use it. |
 | Presets, intensity/focus/color/beam palettes | Reference list | They stay in Eos and keep working there. Looks can trigger presets by number. |
 
 **Tracked cues.** Eos stores each cue as only the *changes* from the cue before it. A cue's channel data on its own is therefore not a complete look, and Sanctuary Light never pretends it is. It doesn't rebuild scenes from partial cue data, and it doesn't invent colours or levels. Imported looks simply ask Eos to run the real cue.
