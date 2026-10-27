@@ -11,11 +11,11 @@ import { splitAbsoluteAddress } from '../engine/eosFeedback';
 export const MAX_CHANNEL = 99999;
 const CUE_RE = /^\d+(\.\d+)?$/;
 
-/** "2/101", "2-101", "2:101" → universe/address; "613" → absolute Eos address. */
+/** "2/101", "2-101", "2:101", "2.101" → universe/address; "613" → absolute Eos address. */
 export function parseAddress(raw: string): DmxAddress | null | 'invalid' {
   const v = raw.trim();
   if (!v || v === '0') return null;
-  const m = v.match(/^(\d+)\s*[/:-]\s*(\d+)$/);
+  const m = v.match(/^(\d+)\s*[/:.-]\s*(\d+)$/);
   if (m) {
     const universe = Number(m[1]); const address = Number(m[2]);
     return universe >= 1 && address >= 1 && address <= 512 ? { universe, address } : 'invalid';
@@ -68,7 +68,7 @@ export class ShowBuilder {
   hasChannel(n: number) { return this.channels.has(n); }
 
   /** Patch information for a channel. Repeated parts add addresses; a repeated part is a duplicate. */
-  patch(channel: number, data: { label?: string; manufacturer?: string; fixtureType?: string; dmx?: DmxAddress | null; part?: number | null }, line: number) {
+  patch(channel: number, data: { label?: string; manufacturer?: string; fixtureType?: string; dmx?: DmxAddress | null; part?: number | null; profileHint?: string; protectedHint?: boolean }, line: number) {
     const existing = this.channels.get(channel);
     const part = data.part ?? 1;
     if (existing) {
@@ -90,6 +90,8 @@ export class ShowBuilder {
       channel, label: data.label?.trim() ?? '', manufacturer: data.manufacturer?.trim() || null,
       fixtureType: data.fixtureType?.trim() || null, dmx: data.dmx ?? null, addresses: data.dmx ? [data.dmx] : [],
       parts: 1, parameters: [], line, seen: new Set([part]),
+      ...(data.profileHint ? { profileHint: data.profileHint } : {}),
+      ...(data.protectedHint ? { protectedHint: true } : {}),
     };
     this.channels.set(channel, ch);
   }

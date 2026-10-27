@@ -42,6 +42,10 @@ export interface ImportedChannel {
   parts: number;
   /** Eos parameter names this channel uses anywhere in the show (cues, palettes, presets…). */
   parameters: string[];
+  /** Plain patch spreadsheets only: a Sanctuary Light profile id/name given in the file. */
+  profileHint?: string;
+  /** Plain patch spreadsheets only: the file marks this channel as protected. */
+  protectedHint?: boolean;
   line?: number;
 }
 
@@ -307,8 +311,12 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
     const { profiles, byChannel } = profilesFromShow(show);
     const profileIds = new Set(cfg.profiles.map((p) => p.id));
     for (const p of profiles) {
-      if (profileIds.has(p.id)) { cfg.profiles = cfg.profiles.map((x) => (x.id === p.id ? p : x)); changes.profiles.updated++; }
-      else { cfg.profiles.push(p); changes.profiles.added++; }
+      const old = cfg.profiles.find((x) => x.id === p.id);
+      if (!old) { cfg.profiles.push(p); changes.profiles.added++; continue; }
+      // Evidence only adds: a later export with less detail never removes controls.
+      const caps = [...new Set([...old.capabilities, ...p.capabilities])];
+      const merged = { ...old, capabilities: caps, eosParams: { ...old.eosParams, ...p.eosParams }, verified: old.verified || p.verified };
+      if (JSON.stringify(merged) !== JSON.stringify(old)) { cfg.profiles = cfg.profiles.map((x) => (x.id === p.id ? merged : x)); changes.profiles.updated++; }
     }
     const localByChan = new Map(current.fixtures.map((f) => [f.channel, f]));
     const importedChans = new Set(show.channels.map((c) => c.channel));
@@ -320,27 +328,36 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
     for (const g of show.groups) for (const c of g.channels) if (!firstGroup.has(c)) firstGroup.set(c, g.number);
     const toPlace = show.channels.filter((c) => !localByChan.has(c.channel))
       .sort((a, b) => (firstGroup.get(a.channel) ?? 1e9) - (firstGroup.get(b.channel) ?? 1e9) || a.channel - b.channel);
-    const perRow = Math.max(8, Math.floor((cfg.stage.width - 80) / 56));
-    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: 60 + (i % perRow) * 56, y: cfg.stage.height - 50 - Math.floor(i / perRow) * 52, rotation: 0 }]));
+    // Rows of fixtures along the bottom of the stage, growing upwards but never past the top.
+    const maxRows = Math.max(1, Math.floor((cfg.stage.height - 60) / 52));
+    const perRow = Math.max(Math.floor((cfg.stage.width - 80) / 56), Math.ceil(toPlace.length / maxRows), 1);
+    const dx = Math.max(12, (cfg.stage.width - 80) / perRow);
+    const dy = Math.min(52, (cfg.stage.height - 60) / Math.max(1, Math.ceil(toPlace.length / perRow)));
+    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: Math.round(60 + (i % perRow) * dx), y: Math.round(cfg.stage.height - 50 - Math.floor(i / perRow) * dy), rotation: 0 }]));
+    const usedIds = new Set(current.fixtures.map((f) => f.id));
 
     for (const ch of show.channels) {
       const local = localByChan.get(ch.channel);
       // Information the export doesn't have (a USITT ASCII file has no fixture types; labels or
       // addresses may be blank) never overwrites what Sanctuary Light already knows.
-      const profileId = byChannel.get(ch.channel) ?? local?.profileId ?? 'generic';
+      const hinted = ch.profileHint ? cfg.profiles.find((p) => p.id === ch.profileHint || p.name.toLowerCase() === ch.profileHint!.toLowerCase())?.id : undefined;
+      const profileId = byChannel.get(ch.channel) ?? hinted ?? local?.profileId ?? 'generic';
       const relay = cfg.profiles.find((p) => p.id === profileId)?.capabilities.includes('relay') ?? false;
       const label = ch.label || local?.label || (ch.fixtureType ? `${ch.fixtureType} ${ch.channel}` : `Channel ${ch.channel}`);
+      let id = local?.id ?? `fx-${ch.channel}`;
+      if (!local) { while (usedIds.has(id)) id = `${id}-eos`; usedIds.add(id); }
       const fromEos: Fixture = {
-        id: `fx-${ch.channel}`,
+        id,
         channel: ch.channel,
         label,
         profileId,
         dmx: ch.dmx ?? local?.dmx ?? null,
         area: local?.area ?? suggestArea(label, relay),
         // Never remove a local protection; add one for relays / non-dims named in Eos.
-        protected: (local?.protected ?? false) || relay || RELAY_RE.test(ch.label),
+        protected: (local?.protected ?? false) || relay || RELAY_RE.test(ch.label) || ch.protectedHint === true,
         stage: local?.stage ?? gridPos.get(ch.channel)!,
-        notes: [ch.manufacturer, ch.fixtureType].filter(Boolean).join(' ') || local?.notes,
+        // The operator's own notes win; the Eos type is kept separately in eosType.
+        notes: local?.notes || [ch.manufacturer, ch.fixtureType].filter(Boolean).join(' ') || undefined,
         eosType: ch.fixtureType ?? local?.eosType,
         unplaced: local ? local.unplaced : true,
       };

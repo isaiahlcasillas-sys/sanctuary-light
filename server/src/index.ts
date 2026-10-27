@@ -149,8 +149,8 @@ app.post('/api/import/eos/apply', operatorOnly, (req, res) => {
 
 app.post('/api/import/eos/undo', operatorOnly, (req, res) => {
   if (req.body?.confirm !== true) { res.status(400).json({ error: 'Confirmation required' }); return; }
-  const result = showImport.undoLast();
-  res.status(result.ok ? 200 : 409).json(result.ok ? result : { error: result.error });
+  const result = showImport.undoLast(req.body?.force === true);
+  res.status(result.ok ? 200 : 409).json(result.ok ? result : { error: result.error, changedSince: result.changedSince ?? false });
 });
 
 app.get('/api/patch/export', operatorOnly, (req, res) => {

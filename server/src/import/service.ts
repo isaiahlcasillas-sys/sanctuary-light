@@ -65,15 +65,16 @@ export class ShowImportService {
   }
 
   /** Put back the configuration from before the last import. Local only, like the import. */
-  undoLast(): { ok: boolean; error?: string; restored?: string } {
+  undoLast(force = false): { ok: boolean; error?: string; changedSince?: boolean; restored?: string } {
     if (this.hooks.mode() === 'eos-live') return { ok: false, error: 'Live control is armed. Switch to SIM or Monitor first.' };
     const prev = this.store.get();
-    let restored: string | null;
-    try { restored = this.store.undoLastImport(); } catch (e) { return { ok: false, error: `Could not restore: ${(e as Error).message}` }; }
-    if (!restored) return { ok: false, error: 'There is no Eos import to undo.' };
+    let r: ReturnType<ConfigStore['undoLastImport']>;
+    try { r = this.store.undoLastImport(force); } catch (e) { return { ok: false, error: `Could not restore: ${(e as Error).message}` }; }
+    if (r.status === 'none') return { ok: false, error: 'There is no Eos import to undo.' };
+    if (r.status === 'changed') return { ok: false, changedSince: true, error: 'Things were changed after the import (for example the stage was arranged). Undoing would also discard those changes to fixtures, groups, looks, cue lists and submasters.' };
     this.hooks.configChanged(prev, this.store.get());
-    this.hooks.log('warn', `Eos import undone: restored ${restored}. Local configuration only; nothing was sent to Eos.`);
-    return { ok: true, restored };
+    this.hooks.log('warn', `Eos import undone: fixtures, groups, looks, cue lists and submasters restored from ${r.restored}. Settings were left as they are. Local configuration only; nothing was sent to Eos.`);
+    return { ok: true, restored: r.restored };
   }
 
   apply(token: string, rawOptions: unknown): ApplyResult {

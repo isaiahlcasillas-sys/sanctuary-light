@@ -67,7 +67,8 @@ export const useApp = create<AppState>((set, get) => ({
   setImportOpen(open) { set({ importOpen: open }); },
   startArranging() {
     localStorageSet('sl-ui-mode', 'advanced');
-    set({ importOpen: false, uiMode: 'advanced' });
+    // Start from the imported configuration, not an older unsaved layout draft.
+    set({ importOpen: false, uiMode: 'advanced', draftFixtures: null, draftElements: null, editLayout: false });
     get().setEditLayout(true);
   },
 

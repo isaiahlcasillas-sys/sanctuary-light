@@ -164,6 +164,20 @@ describe('Files that cannot be imported', () => {
     expect(t.issues.some((i) => /no END_CHANNELS/.test(i.message))).toBe(true);
   });
 
+  it('skips cue rows with an invalid cue list instead of failing the import', () => {
+    const csv = 'START_LEVELS\nTARGET_TYPE_AS_TEXT,TARGET_LIST_NUMBER,TARGET_ID,CHANNEL,PARAMETER_TYPE_AS_TEXT\nCue,1.5,1,1,Intensity\nCue,x,2,1,Intensity\nCue,2,3,1,Intensity\nEND_LEVELS\nSTART_TARGETS\nTARGET_TYPE_AS_TEXT,TARGET_LIST_NUMBER,TARGET_ID,LABEL\nCue,2.5,9,Bad list\nEND_TARGETS\n';
+    const s = parseShowFile(Buffer.from(csv), 'lists.csv');
+    expect(s.cueLists.map((l) => l.list)).toEqual([2]);
+    expect(s.issues.some((i) => /cue list "2.5" is not a whole number/.test(i.message))).toBe(true);
+    const cfg = defaultConfig();
+    expect(() => new ConfigStore(tmp()).applyImport(buildImportPlan(s, cfg, defaultImportOptions(s, cfg)).config)).not.toThrow();
+  });
+
+  it('reads DMX addresses the same way as the patch spreadsheet import', () => {
+    const s = parseShowFile(Buffer.from('channel,address\n1,2.101\n2,2-5\n3,613\n'), 'a.csv');
+    expect(s.channels.map((c) => c.dmx)).toEqual([{ universe: 2, address: 101 }, { universe: 2, address: 5 }, { universe: 2, address: 101 }]);
+  });
+
   it('copes with missing fields', () => {
     const csv = 'START_TARGETS\r\nTARGET_TYPE_AS_TEXT,TARGET_ID,LABEL\r\nCue,1,\r\nGroup,x,Bad\r\nGroup,4,\r\nEND_TARGETS\r\n';
     const s = parseShowFile(Buffer.from(csv), 'partial.csv');
@@ -241,6 +255,46 @@ describe('Import plan (what changes in Sanctuary Light)', () => {
     expect(after.profileId).toBe(two.profileId);
     expect(after.label).toBe(two.label);
     expect(plan.conflicts.some((c) => c.key === 'Channel 2')).toBe(false);
+  });
+
+  it('keeps fixture ids unique, keeps notes, and never shrinks profiles on re-import', () => {
+    const local = structuredClone(base);
+    local.fixtures = [{ ...base.fixtures[0], id: 'fx-3', channel: 5, notes: 'Gel R02, aimed at pulpit' },
+      { ...base.fixtures[0], id: 'fx-11', channel: 11, label: 'Mine', notes: 'Gel R02' }];
+    const plan = buildImportPlan(s, local, opts(s, local));
+    const ids = plan.config.fixtures.map((f) => f.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(plan.config.fixtures.find((f) => f.channel === 3)!.id).not.toBe('fx-3');
+    expect(plan.config.fixtures.find((f) => f.channel === 11)).toMatchObject({ id: 'fx-11', label: 'Pulpit Special', notes: 'Gel R02', eosType: 'Source Four LED Series 2 Lustr' });
+    // A later export without the LEVELS block has no parameter evidence: controls stay.
+    const thin = parseShowFile(Buffer.from(read('eos-export.csv').toString('utf8').replace(/START_LEVELS[\s\S]*END_LEVELS\r\n/, '')), 'thin.csv');
+    const again = buildImportPlan(thin, plan.config, opts(thin, plan.config));
+    const lustr = again.config.profiles.find((p) => p.name === 'Source Four LED Series 2 Lustr')!;
+    expect(lustr.capabilities).toEqual(['intensity', 'rgb']);
+  });
+
+  it('reads Sanctuary Light\'s own patch CSV with its profile and protected columns', () => {
+    const csv = 'channel,label,profile,universe,address,area,protected\n61,Relay,relay,1,61,utility,yes\n21,Par,stagelight-par-rgbw,1,21,stage,no\n22,Bar,Not A Profile,1,30,stage,no\n';
+    const p = parseShowFile(Buffer.from(csv), 'sanctuary-patch.csv');
+    expect(p.format).toBe('patch-csv');
+    expect(p.channels.every((c) => c.fixtureType === null)).toBe(true);
+    const empty = { ...structuredClone(base), fixtures: [] };
+    const plan = buildImportPlan(p, empty, opts(p, empty));
+    const f = (n: number) => plan.config.fixtures.find((x) => x.channel === n)!;
+    expect(f(61)).toMatchObject({ profileId: 'relay', protected: true });
+    expect(f(21).profileId).toBe('stagelight-par-rgbw');
+    expect(f(22).profileId).toBe('generic');
+    expect(plan.config.profiles.some((x) => x.id.startsWith('eos-'))).toBe(false);
+  });
+
+  it('keeps a large patch inside the stage plan', () => {
+    const lines = ['channel,label,address', ...Array.from({ length: 600 }, (_, i) => `${i + 1},F${i + 1},${i + 1}`)];
+    const big = parseShowFile(Buffer.from(lines.join('\n')), 'big.csv');
+    const empty = { ...structuredClone(base), fixtures: [] };
+    const plan = buildImportPlan(big, empty, opts(big, empty));
+    const { width, height } = empty.stage;
+    expect(plan.config.fixtures.every((x) => x.stage.x >= 0 && x.stage.x <= width && x.stage.y >= 0 && x.stage.y <= height)).toBe(true);
+    expect(new Set(plan.config.fixtures.map((x) => `${x.stage.x},${x.stage.y}`)).size).toBe(600);
   });
 
   it('places new fixtures in a temporary grid and flags them for arranging', () => {
@@ -362,6 +416,24 @@ describe('Applying an import is offline and read-only towards Eos', () => {
     expect(svc.undoLast()).toMatchObject({ ok: true, restored: expect.stringMatching(/^pre-import-/) });
     expect(JSON.stringify(store.get())).toBe(before);
     expect(svc.undoLast()).toMatchObject({ ok: false, error: expect.stringMatching(/no Eos import to undo/) });
+    c.shutdown();
+  });
+
+  it('asks before undoing when things changed after the import, and keeps later settings', () => {
+    const { store, c, svc } = setup();
+    const before = store.get();
+    const { token } = svc.preview(read('eos-export.csv'), 'eos-export.csv');
+    expect(svc.apply(token, {}).ok).toBe(true);
+    // Arrange one fixture and change a setting after the import.
+    store.update('fixtures', store.get().fixtures.map((f) => (f.channel === 11 ? { ...f, stage: { x: 10, y: 10, rotation: 0 }, unplaced: false } : f)));
+    const s = store.get().settings;
+    store.update('settings', { ...s, sanctuaryName: 'Renamed later' });
+    expect(svc.undoLast()).toMatchObject({ ok: false, changedSince: true });
+    expect(store.get().eosShow).not.toBeNull();
+    expect(svc.undoLast(true).ok).toBe(true);
+    expect(store.get().fixtures).toEqual(before.fixtures);
+    expect(store.get().eosShow).toBeNull();
+    expect(store.get().settings.sanctuaryName).toBe('Renamed later');
     c.shutdown();
   });
 

@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import {
-  BookOpen, CheckCircle2, Undo2, ChevronLeft, Circle, FileQuestion, FileUp, Info, LayoutGrid, ShieldCheck, TriangleAlert, Upload,
+  BookOpen, CheckCircle2, ChevronLeft, Circle, FileQuestion, FileUp, Info, LayoutGrid, ShieldCheck, TriangleAlert, Upload,
 } from 'lucide-react';
 import {
   EOS_EXPORT_STEPS, buildImportPlan, channelExpression, defaultImportOptions, describeTiming,
@@ -16,6 +16,7 @@ import {
 import { api } from '../../lib/api';
 import { useApp } from '../../state/store';
 import { Confirm, Modal } from '../ui';
+import { UndoImportButton } from './UndoImportButton';
 
 type Phase = 'choose' | 'reading' | 'preview' | 'applying' | 'done';
 type Tab = 'fixtures' | 'groups' | 'cues' | 'palettes' | 'subs' | 'issues';
@@ -440,12 +441,7 @@ function IssuesList({ show, plan }: { show: ParsedShow; plan: ImportPlan }) {
 
 function DoneStep({ show, result, onClose }: { show: ParsedShow; result: ApplyResponse; onClose(): void }) {
   const startArranging = useApp((s) => s.startArranging);
-  const [undoOpen, setUndoOpen] = useState(false);
   const c = result.changes;
-  const undo = async () => {
-    try { await api.post('/api/import/eos/undo', { confirm: true }); useApp.getState().toast('info', 'Import undone: your previous setup is back.'); onClose(); }
-    catch (e) { useApp.getState().toast('error', (e as Error).message); }
-  };
   return (
     <div>
       <h4><CheckCircle2 size={18} color="var(--ok)" style={{ verticalAlign: -3 }} /> Your Eos show is in Sanctuary Light</h4>
@@ -464,12 +460,10 @@ function DoneStep({ show, result, onClose }: { show: ParsedShow; result: ApplyRe
       )}
       <div className="row" style={{ marginTop: 14 }}>
         <button className="btn" onClick={onClose}>Close</button>
-        <button className="btn ghost" onClick={() => setUndoOpen(true)}><Undo2 size={15} />Undo import</button>
+        <UndoImportButton className="btn ghost" onDone={onClose} />
         <span className="spacer" />
         <button className="btn primary" onClick={startArranging}><LayoutGrid size={16} />Start arranging my sanctuary</button>
       </div>
-      <Confirm open={undoOpen} onOpenChange={setUndoOpen} title="Undo this import?" confirmLabel="Undo import"
-        body="Sanctuary Light goes back to the setup it had before this import (your current setup is backed up first). Eos is not affected." onConfirm={() => void undo()} />
     </div>
   );
 }

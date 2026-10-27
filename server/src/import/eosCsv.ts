@@ -44,6 +44,13 @@ function targetKind(text: string): TargetKind {
   return 'other';
 }
 
+/** Cue list number from TARGET_LIST_NUMBER: a whole number ≥ 1, empty → list 1, anything else → null. */
+function listNumber(raw: string): number | null {
+  if (!raw.trim()) return 1;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : n === 0 ? 1 : null;
+}
+
 const isPalette = (k: TargetKind): k is PaletteKind => ['preset', 'intensity', 'focus', 'color', 'beam'].includes(k);
 const flag = (v: string) => v !== '' && !/^(0|no|false|off)$/i.test(v);
 
@@ -116,10 +123,14 @@ function readPatch(block: Block, b: ShowBuilder) {
     if (dmx === 'invalid') { b.issue('warning', `Channel ${parsed.channel}: DMX address "${addrRaw}" not understood; left empty.`, line); dmx = null; }
     const partRaw = col(row, 'PART', 'PART_NUMBER');
     const part = /^\d+$/.test(partRaw) && Number(partRaw) > 0 ? Number(partRaw) : parsed.cell;
+    const prot = col(row, 'PROTECTED').toLowerCase();
     b.patch(parsed.channel, {
       label: col(row, 'LABEL', 'CHANNEL_LABEL', 'NAME'),
       manufacturer: col(row, 'MANUFACTURER', 'FIXTURE_MANUFACTURER', 'MFR'),
-      fixtureType: col(row, 'FIXTURE_TYPE', 'FIXTURE', 'TYPE', 'DEVICE_TYPE', 'MODEL', 'PROFILE', 'PERSONALITY'),
+      fixtureType: col(row, 'FIXTURE_TYPE', 'FIXTURE', 'TYPE', 'DEVICE_TYPE', 'MODEL', 'PERSONALITY'),
+      // Sanctuary Light's own patch CSV names its profile; that is a profile, not an Eos type.
+      profileHint: col(row, 'PROFILE') || undefined,
+      protectedHint: ['1', 'true', 'yes', 'y'].includes(prot),
       dmx, part,
     }, line);
   }
@@ -133,16 +144,17 @@ function readTargets(block: Block, b: ShowBuilder) {
     const kind = targetKind(typeText);
     const id = col(row, 'TARGET_ID');
     const label = col(row, 'LABEL');
-    const listNum = Number(col(row, 'TARGET_LIST_NUMBER') || '0');
+    const listRaw = col(row, 'TARGET_LIST_NUMBER');
+    const listNum = listNumber(listRaw);
     if (kind === 'other') { unknownTypes.set(typeText, (unknownTypes.get(typeText) ?? 0) + 1); continue; }
     if (kind === 'cuelist') {
-      const n = Number(id || listNum);
+      const n = Number(id || listNum || 0);
       if (Number.isInteger(n) && n > 0) b.cueList(n, label);
       continue;
     }
     if (kind === 'cue') {
-      const list = Number.isInteger(listNum) && listNum > 0 ? listNum : 1;
-      const q = b.cue(list, id, line);
+      if (listNum === null) { b.issue('warning', `Cue ${id}: cue list "${listRaw}" is not a whole number; skipped.`, line); continue; }
+      const q = b.cue(listNum, id, line);
       if (!q) continue;
       const part = Number(col(row, 'PART_NUMBER', 'PART') || '0');
       if (part > 0) { q.parts = Math.max(q.parts, part); continue; } // part rows: counted, base cue keeps its own data
@@ -182,11 +194,12 @@ function readLevels(block: Block, b: ShowBuilder) {
     const param = col(row, 'PARAMETER_TYPE_AS_TEXT', 'PARAMETER');
     if (param) b.parameter(ch.channel, param);
     const id = col(row, 'TARGET_ID');
-    const listNum = Number(col(row, 'TARGET_LIST_NUMBER') || '0');
+    const listNum = listNumber(col(row, 'TARGET_LIST_NUMBER'));
     if (kind === 'group') { const n = Number(id); if (Number.isInteger(n) && n > 0) b.groupChannel(n, ch.channel); }
     else if (kind === 'sub') { const n = Number(id); if (Number.isInteger(n) && n > 0) b.subChannel(n, ch.channel); }
     else if (kind === 'cue') {
-      const q = b.cue(listNum > 0 ? listNum : 1, id, line);
+      if (listNum === null) { b.skip('level row with an invalid cue list', line, raw.join(',')); continue; }
+      const q = b.cue(listNum, id, line);
       if (q) b.cueMove(listNum, q, ch.channel);
     } else if (isPalette(kind) && /^\d+(\.\d+)?$/.test(id)) {
       const p = b.palette(kind, id, null);

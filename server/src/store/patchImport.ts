@@ -9,7 +9,7 @@
  * - "profile" matches a profile id or name; unknown types fall back to "generic".
  */
 import type { AreaId, Fixture, FixtureProfile } from '@sanctuary/shared';
-import { splitAbsoluteAddress } from '../engine/eosFeedback';
+import { parseAddress } from '../import/builder';
 
 export interface ImportResult {
   fixtures: Fixture[];
@@ -61,16 +61,16 @@ export function matchProfile(raw: string, profiles: FixtureProfile[]): FixturePr
 function parseDmx(rec: Record<string, string>, warnings: string[], line: number): Fixture['dmx'] {
   const dmx = rec.dmx?.trim();
   if (dmx) {
-    const m = dmx.match(/^(\d+)\s*[/.:]\s*(\d+)$/);
-    if (m) return { universe: Number(m[1]), address: Number(m[2]) };
-    if (/^\d+$/.test(dmx)) return splitAbsoluteAddress(Number(dmx));
+    const parsed = parseAddress(dmx);
+    if (parsed && parsed !== 'invalid') return parsed;
     warnings.push(`Line ${line}: could not read DMX "${dmx}"`);
     return null;
   }
   const u = Number(rec.universe); const a = Number(rec.address);
   if (rec.address?.trim() && Number.isInteger(a) && a > 0) {
     if (rec.universe?.trim() && Number.isInteger(u) && u > 0) return { universe: u, address: a };
-    return splitAbsoluteAddress(a);
+    const parsed = parseAddress(String(a));
+    return parsed === 'invalid' ? null : parsed;
   }
   return null;
 }
