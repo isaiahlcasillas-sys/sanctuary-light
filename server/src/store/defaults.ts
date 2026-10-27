@@ -177,7 +177,7 @@ export const DEFAULT_STAGE_ELEMENTS: StageElement[] = [
 ];
 
 export function defaultCommissioning(): CommissioningRecord {
-  return { versionConfirmedAt: null, networkCheckedAt: null, monitorTest: null, liveTest: null, notes: '' };
+  return { versionConfirmedAt: null, networkCheckedAt: null, monitorTest: null, liveTest: null, recoveryObservedAt: null, notes: '' };
 }
 
 export function defaultConfig(): AppConfig {

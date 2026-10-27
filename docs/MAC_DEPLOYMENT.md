@@ -39,7 +39,7 @@ Dock / Desktop ──► ~/Applications/Sanctuary Light.app
 4. Sign in with the operator PIN and **change both PINs** (*Settings → Safety & Security*).
 5. Run the **Ion Setup Wizard** and work through `docs/COMMISSIONING.md` at church.
 
-Remove everything with `./deploy/macos/uninstall.sh`. It keeps your data.
+Remove everything with `./deploy/macos/uninstall.sh`. It keeps your data. Other helpers: `check-mac.sh` (read-only health check), `update.sh` (refuses unless in SIM; rolls back on failure), `restore-backup.sh`. The beginner walkthrough is [`INSTALL_MAC.md`](INSTALL_MAC.md).
 
 ### macOS settings for an unattended booth Mac
 

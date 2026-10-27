@@ -35,6 +35,8 @@ export interface FakeEos {
   ports: { slip: number | null; length: number };
   /** Change a group and notify subscribed clients, like editing it on the console. */
   setGroup(n: number, channels: (number | string)[]): void;
+  /** true = keep connections open but stop answering (console frozen / cable pulled). */
+  mute(on: boolean): void;
   close(): void;
 }
 
@@ -71,8 +73,13 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
     }, 100);
   }
 
+  let muted = false;
+  const sockets = new Set<net.Socket>();
+
   function respond(m: OscMessage, reply: (r: OscMessage) => void) {
+    // A muted console still receives (and records) everything; it just stops answering.
     received.push(formatMessage(m));
+    if (muted) return;
     log(`[fake-eos] rx ${formatMessage(m)}`);
     const a = m.address.replace(/^\/eos\/user\/\d+/, '/eos');
     const press = m.args.length === 0 || m.args[0]?.value === 1;
@@ -122,6 +129,8 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
   function tcpServer(port: number, framing: 'slip' | 'length'): Promise<net.Server> {
     const srv = net.createServer((sock) => {
       log(`[fake-eos] TCP ${framing} client connected`);
+      sockets.add(sock);
+      sock.on('close', () => sockets.delete(sock));
       const dec = framing === 'slip' ? new SlipDecoder() : new LengthPrefixDecoder();
       const reply = (r: OscMessage) => {
         if (sock.destroyed) return;
@@ -156,7 +165,9 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
         groups.set(n, channels);
         for (const s of subscribers) s({ address: '/eos/out/notify/group/list/0/2', args: [int(1), int(n)] });
       },
-      close() { len.close(); slip?.close(); try { udp.close(); } catch { /* not bound */ } },
+      mute(on) { muted = on; },
+      // Like the console rebooting: listeners and existing connections go away.
+      close() { len.close(); slip?.close(); for (const s of sockets) s.destroy(); try { udp.close(); } catch { /* not bound */ } },
     };
   });
 }

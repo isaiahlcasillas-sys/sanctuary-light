@@ -61,6 +61,7 @@ export class EosOscEngine implements OutputEngine {
     this.link = link;
     this.setConn({ state: 'connecting', detail: `Connecting: ${link.description}`, target: link.description });
     link.on('open', () => {
+      this.openedAt = Date.now();
       this.reconnectDelay = 2000;
       this.setConn({
         state: link.kind === 'udp' ? 'connecting' : 'connected',
@@ -106,8 +107,23 @@ export class EosOscEngine implements OutputEngine {
     this.hooks.onFeedback(ev, m);
   }
 
+  private openedAt = 0;
+
   private ping() {
-    if (this.link?.isOpen) this.transmit([this.builder.ping()], { quiet: true });
+    const link = this.link;
+    if (!link?.isOpen) return;
+    // A TCP connection to a console that was powered off or unplugged can stay "open" for
+    // minutes. If nothing has come back for twice the stale time, drop it and reconnect.
+    // Reconnecting only sends ping / version / subscribe / group queries.
+    // Measure from the later of the last reply and this connection opening; using only the
+    // last reply would drop every fresh connection to a console that was silent earlier.
+    const last = Math.max(this.conn.lastRxAt ?? 0, this.openedAt);
+    if (link.reset && Date.now() - last > this.settings.staleSeconds * 2000) {
+      this.hooks.log('warn', `No reply from the console for ${Math.round((Date.now() - last) / 1000)} s — reconnecting.`);
+      link.reset();
+      return;
+    }
+    this.transmit([this.builder.ping()], { quiet: true });
   }
 
   /**

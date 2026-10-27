@@ -96,7 +96,7 @@ export class Controller {
   constructor(private store: ConfigStore, private broadcast: (msg: ServerMessage) => void, private defaultPins: () => boolean) {
     this.limiter = new CommandRateLimiter(() => 1000 / this.cfg.settings.connection.maxCommandRateHz);
     for (const f of this.cfg.fixtures) { this.levels[f.channel] = { intensity: 0 }; this.sources[f.channel] = 'simulated'; }
-    this.statusTimer = setInterval(() => this.pushStatus(), 1000);
+    this.statusTimer = setInterval(() => { this.watchRecovery(); this.pushStatus(); }, 1000);
     this.log('info', 'Sanctuary Light started in Offline Simulation mode. Nothing is transmitted until you change mode.');
   }
 
@@ -154,7 +154,7 @@ export class Controller {
     const conn = this.connection();
     const now = Date.now();
     const staleMs = this.cfg.settings.connection.staleSeconds * 1000;
-    const stale = this.mode !== 'offline' && (conn.lastRxAt == null ? now - this.engineStartedAt > staleMs : now - conn.lastRxAt > staleMs);
+    const stale = this.isStale(conn, now, staleMs);
     if (this.protectedUnlockedUntil && this.protectedUnlockedUntil < now) {
       this.protectedUnlockedUntil = null;
       this.log('info', 'Protected channels re-locked automatically.');
@@ -170,6 +170,10 @@ export class Controller {
       defaultPinsInUse: this.defaultPins(),
       serverTime: now,
     };
+  }
+
+  private isStale(conn = this.connection(), now = Date.now(), staleMs = this.cfg.settings.connection.staleSeconds * 1000): boolean {
+    return this.mode !== 'offline' && (conn.lastRxAt == null ? now - this.engineStartedAt > staleMs : now - conn.lastRxAt > staleMs);
   }
 
   pushStatus() { this.broadcast({ t: 'status', status: this.status() }); }
@@ -250,6 +254,31 @@ export class Controller {
     return `Console reports Eos ${this.consoleVersion}, but Settings say ${this.cfg.settings.connection.eosVersion}. Update the version in the Setup Wizard.`;
   }
 
+  /** The console answered and was healthy at least once since this engine started. */
+  private hadHealthyConnection = false;
+  /** True after a healthy connection was later lost (disconnected, error, or stale). */
+  private connectionWasLost = false;
+
+  /**
+   * Record, for the Sunday readiness check, that the app recovered on its own after losing
+   * the console. Bookkeeping only — it never sends anything.
+   */
+  private watchRecovery() {
+    if (this.mode === 'offline' || !this.eos) { this.hadHealthyConnection = this.connectionWasLost = false; return; }
+    const state = this.connection().state;
+    const stale = this.isStale();
+    const healthy = state === 'connected' && !stale && this.connection().lastRxAt != null;
+    // Only a loss *after* a healthy connection counts: a failed first attempt (e.g. the Ion
+    // still booting) is not a recovery.
+    if (!healthy) { if (this.hadHealthyConnection) this.connectionWasLost = true; return; }
+    this.hadHealthyConnection = true;
+    if (this.connectionWasLost) {
+      this.connectionWasLost = false;
+      this.log('info', 'Console connection recovered automatically.');
+      this.recordCommissioning({ recoveryObservedAt: Date.now() });
+    }
+  }
+
   private recordCommissioning(patch: Partial<CommissioningRecord>) {
     const s = this.cfg.settings;
     try {
@@ -267,7 +296,7 @@ export class Controller {
     const engine = new EosOscEngine(this.cfg.settings.connection, {
       log: (level, message) => this.log(level, message),
       onFeedback: (ev, raw) => this.onFeedback(ev, raw),
-      onConnectionChange: () => this.pushStatus(),
+      onConnectionChange: () => { this.watchRecovery(); this.pushStatus(); },
       onOpen: () => { this.groupVerifier.invalidate(); this.requestGroupVerification(); },
     });
     engine.allowLighting = allowLighting;
@@ -277,6 +306,7 @@ export class Controller {
   }
 
   private stopEngine() {
+    this.hadHealthyConnection = this.connectionWasLost = false;
     this.limiter.clear();
     this.eos?.stop();
     this.eos = null;
@@ -459,7 +489,25 @@ export class Controller {
         if (!eos || this.connection().state !== 'connected') {
           return { ok: false, delivery: 'error', message: `Not connected to the Ion — nothing was sent. (${this.connection().detail})`, osc };
         }
+        // A stale connection may be half-open: bytes written now could be delivered much later
+        // when the link recovers. Refuse instead, so nothing is ever replayed late.
+        // Live requires two-way contact: a console that never answers can't be confirmed to exist.
+        if (this.isStale()) {
+          const never = this.connection().lastRxAt == null;
+          return {
+            ok: false, delivery: 'error', osc,
+            message: never
+              ? 'The Ion has not answered at all on this connection — nothing was sent. Check that OSC RX and TX are on in the Ion\'s Show Control settings, and the port/format.'
+              : 'The Ion has not answered recently (connection stale) — nothing was sent. Use the Ion directly if needed.',
+          };
+        }
         const send = () => {
+          if (this.isStale()) {
+            const message = `${description}: NOT sent — the Ion stopped answering before it could go out.`;
+            this.log('warn', message);
+            this.broadcast({ t: 'notice', level: 'error', message });
+            return;
+          }
           try { eos.transmit(msgs); }
           catch (e) { this.log('error', `${description}: ${(e as Error).message}`); }
         };

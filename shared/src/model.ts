@@ -195,6 +195,8 @@ export interface CommissioningRecord {
   networkCheckedAt: number | null;
   monitorTest: { at: number; ok: boolean; replyMs: number | null; reportedVersion: string | null; detail: string } | null;
   liveTest: { at: number; channel: number; level: number; operatorConfirmedLight: boolean | null; released: boolean } | null;
+  /** Last time the app was seen to lose and then regain the console (recorded automatically). */
+  recoveryObservedAt: number | null;
   notes: string;
 }
 

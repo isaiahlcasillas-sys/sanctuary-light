@@ -148,4 +148,6 @@ export type ServerMessage =
   | { t: 'levels'; levels: LevelsSnapshot }
   | { t: 'config'; config: AppConfig }
   | { t: 'ack'; id: string; result: CommandResult }
-  | { t: 'log'; entry: LogEntry };
+  | { t: 'log'; entry: LogEntry }
+  /** Something the operator must see now (e.g. a queued command that was not sent after all). */
+  | { t: 'notice'; level: 'error' | 'warn'; message: string };

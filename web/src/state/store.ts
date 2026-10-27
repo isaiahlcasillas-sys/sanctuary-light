@@ -148,6 +148,7 @@ function handle(msg: ServerMessage) {
       break;
     }
     case 'log': set({ log: [...useApp.getState().log.slice(-299), msg.entry] }); break;
+    case 'notice': useApp.getState().toast(msg.level === 'error' ? 'error' : 'blocked', msg.message); break;
     case 'ack': {
       const r = pending.get(msg.id);
       pending.delete(msg.id);
