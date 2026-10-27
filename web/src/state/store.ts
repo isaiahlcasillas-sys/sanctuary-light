@@ -1,13 +1,36 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import type {
-  AppConfig, AreaId, Command, CommandResult, Fixture, LevelsSnapshot, LogEntry, Role, ServerMessage, ServerStatus, StageElement, Target,
+import {
+  MAX_FADE_SECONDS, clampToProfile, collectionOf, lookLevels, toLookFixtures,
+  type AppConfig, type AreaId, type Command, type CommandResult, type Fixture, type FixtureState, type LevelsSnapshot, type Look, type LogEntry,
+  type Role, type ServerMessage, type ServerStatus, type StageElement, type Target,
 } from '@sanctuary/shared';
 
 export interface Toast { id: number; kind: 'sent' | 'simulated' | 'blocked' | 'error' | 'info'; message: string }
 
 /** volunteer = Volunteer Mode, advanced = Worship Mode (operator), architecture = Architectural Status, setup = Sanctuary Setup (operator). */
 export type UiMode = 'volunteer' | 'advanced' | 'architecture' | 'setup';
+
+/** Which workspace panels are shown (persisted per computer). */
+export interface Panels { left: boolean; right: boolean; bottom: boolean; maximized: boolean }
+export type BottomTab = 'looks' | 'cues' | 'subs';
+
+/**
+ * A look being designed. Lives only in this browser until saved; editing it never sends a
+ * command (not even in simulation). Saving writes a LOCAL look; nothing is recorded in Eos.
+ */
+export interface DesignerDraft {
+  /** The look being edited, or null for a new one. */
+  lookId: string | null;
+  name: string;
+  description: string;
+  collection: string;
+  icon: string;
+  fadeSeconds: number;
+  /** Designed state per channel. Channels not listed aren't part of the look. */
+  states: Record<number, FixtureState>;
+  dirty: boolean;
+}
 
 /** Steps of the Sanctuary Setup workflow. */
 export type SetupStep = 'import' | 'review' | 'arrange' | 'looks' | 'verify' | 'testing';
@@ -72,7 +95,35 @@ interface AppState {
   layoutChanged(): boolean;
   toast(kind: Toast['kind'], message: string): void;
   dismissToast(id: number): void;
+
+  panels: Panels;
+  togglePanel(p: keyof Panels): void;
+  bottomTab: BottomTab;
+  setBottomTab(t: BottomTab): void;
+  /** Library filter in the Looks panel ('all' or a collection name). */
+  lookFilter: string;
+  setLookFilter(f: string): void;
+
+  designer: DesignerDraft | null;
+  /** Open the Look Designer: a new look, an existing one, or a copy of one. Offline Simulation only. */
+  openDesigner(look?: Look, opts?: { duplicate?: boolean }): boolean;
+  closeDesigner(): void;
+  /** When a draft fade preview started (the stage fades the draft up from dark). */
+  designerPreviewAt: number | null;
+  previewDesignerFade(): void;
+  /** Set parameters for channels in the draft (adds them to the look if needed). */
+  designerSet(channels: number[], patch: Partial<FixtureState>): void;
+  designerRemove(channels: number[]): void;
+  designerMeta(patch: Partial<Pick<DesignerDraft, 'name' | 'description' | 'collection' | 'icon' | 'fadeSeconds'>>): void;
+  /** Save the draft as a local look (asNew: save a copy). */
+  saveDesigner(asNew?: boolean): Promise<boolean>;
 }
+
+const DEFAULT_PANELS: Panels = { left: true, right: true, bottom: true, maximized: false };
+function loadPanels(): Panels {
+  try { return { ...DEFAULT_PANELS, ...JSON.parse(localStorageGet('sl-panels') ?? '{}'), maximized: false }; } catch { return DEFAULT_PANELS; }
+}
+const newLookId = () => `look-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
 export const useApp = create<AppState>((set, get) => ({
   socketState: 'connecting',
@@ -214,6 +265,104 @@ export const useApp = create<AppState>((set, get) => ({
     setTimeout(() => get().dismissToast(id), kind === 'error' || kind === 'blocked' ? 7000 : 3500);
   },
   dismissToast(id) { set({ toasts: get().toasts.filter((t) => t.id !== id) }); },
+
+  panels: loadPanels(),
+  togglePanel(p) {
+    const panels = { ...get().panels, [p]: !get().panels[p] };
+    localStorageSet('sl-panels', JSON.stringify({ ...panels, maximized: false }));
+    set({ panels });
+  },
+  bottomTab: (localStorageGet('sl-bottom-tab') as BottomTab) ?? 'looks',
+  setBottomTab(t) { localStorageSet('sl-bottom-tab', t); set({ bottomTab: t }); },
+  lookFilter: 'all',
+  setLookFilter(f) { set({ lookFilter: f }); },
+
+  designer: null,
+  openDesigner(look, opts = {}) {
+    const { config, status, toast } = get();
+    if (!config) return false;
+    if ((status?.mode ?? 'offline') !== 'offline') {
+      toast('blocked', 'The Look Designer works in Offline Simulation only. Switch to SIM first.');
+      return false;
+    }
+    if (look && look.action.type !== 'none' && !opts.duplicate) {
+      toast('info', `“${look.name}” plays an Eos ${look.action.type}. Its contents live in Eos, so it can't be edited here. Duplicate it to design a local version.`);
+      return false;
+    }
+    const states: Record<number, FixtureState> = {};
+    if (look) for (const [ch, s] of lookLevels(config, look)) states[ch] = s;
+    set({
+      designer: {
+        lookId: look && !opts.duplicate ? look.id : null,
+        name: look ? (opts.duplicate ? `${look.name} (copy)` : look.name) : 'New look',
+        description: look?.description ?? '',
+        collection: look ? collectionOf(look) : (get().lookFilter !== 'all' ? get().lookFilter : 'Worship'),
+        icon: look?.icon ?? 'sparkles',
+        fadeSeconds: look?.fadeSeconds ?? 3,
+        states,
+        dirty: !!opts.duplicate,
+      },
+      selection: [],
+      editLayout: false,
+    });
+    return true;
+  },
+  closeDesigner() { set({ designer: null, designerPreviewAt: null }); },
+  designerPreviewAt: null,
+  previewDesignerFade() { set({ designerPreviewAt: Date.now() }); },
+  designerSet(channels, patch) {
+    const { designer, config } = get();
+    if (!designer || !config) return;
+    const profiles = new Map(config.profiles.map((p) => [p.id, p]));
+    const states = { ...designer.states };
+    for (const ch of channels) {
+      const f = config.fixtures.find((x) => x.channel === ch);
+      if (!f) continue;
+      const prev = states[ch] ?? { intensity: 0 };
+      states[ch] = clampToProfile({ ...prev, ...patch }, profiles.get(f.profileId));
+    }
+    set({ designer: { ...designer, states, dirty: true } });
+  },
+  designerRemove(channels) {
+    const { designer } = get();
+    if (!designer) return;
+    const states = { ...designer.states };
+    for (const ch of channels) delete states[ch];
+    set({ designer: { ...designer, states, dirty: true } });
+  },
+  designerMeta(patch) {
+    const { designer } = get();
+    if (!designer) return;
+    const next = { ...designer, ...patch, dirty: true };
+    if (patch.fadeSeconds != null) next.fadeSeconds = Math.max(0, Math.min(MAX_FADE_SECONDS, Math.round(patch.fadeSeconds * 10) / 10));
+    set({ designer: next });
+  },
+  async saveDesigner(asNew = false) {
+    const { designer, config, toast } = get();
+    if (!designer || !config) return false;
+    const name = designer.name.trim();
+    if (!name) { toast('error', 'Give the look a name first.'); return false; }
+    const fixtures = toLookFixtures(new Map(Object.entries(designer.states).map(([k, v]) => [Number(k), v])), config.fixtures, config.profiles);
+    const existing = !asNew && designer.lookId ? config.looks.find((l) => l.id === designer.lookId) : undefined;
+    const base: Look = existing ?? {
+      id: newLookId(), name, description: '', icon: designer.icon, gradient: ['#1e293b', '#475569'],
+      action: { type: 'none' }, preview: [], volunteerVisible: false, approval: null,
+    };
+    const look: Look = {
+      ...base, name, description: designer.description.trim(), icon: designer.icon, collection: designer.collection.trim() || 'Worship',
+      fadeSeconds: designer.fadeSeconds, fixtures, preview: [], updatedAt: Date.now(),
+    };
+    const looks = existing ? config.looks.map((l) => (l.id === look.id ? look : l)) : [...config.looks, look];
+    try {
+      await api.put('/api/config/looks', looks);
+      set({ designer: { ...designer, lookId: look.id, name, dirty: false } });
+      toast('info', `Saved “${name}” as a local look (${fixtures.length} fixture${fixtures.length === 1 ? '' : 's'}). Nothing was recorded in Eos.`);
+      return true;
+    } catch (e) {
+      toast('error', `Could not save the look: ${(e as Error).message}`);
+      return false;
+    }
+  },
 }));
 
 function sessionStorageGet(k: string) { try { return sessionStorage.getItem(k); } catch { return null; } }

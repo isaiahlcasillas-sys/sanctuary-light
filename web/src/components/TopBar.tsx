@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Eye, FileUp, ListChecks, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
+import { Building2, Eye, FileText, FileUp, ListChecks, Wand2, Lock, LogIn, LogOut, Palette, Radio, Settings, ShieldAlert, Unlock, Users, Zap, ZapOff } from 'lucide-react';
 import { MODE_INFO, type OperatingMode } from '@sanctuary/shared';
 import { logout, sendCommand, useApp } from '../state/store';
 import { ArmDialog } from './ArmDialog';
@@ -62,7 +62,8 @@ export function TopBar({ onOpenSettings }: { onOpenSettings(): void }) {
       </div>
 
       <div className="mode-switch" role="radiogroup" aria-label="Operating mode">
-        {MODES.map(({ mode: m, icon }) => (
+        {/* Modes that aren't available yet (direct DMX) aren't shown at all. */}
+        {MODES.filter(({ mode: m }) => MODE_INFO[m].available).map(({ mode: m, icon }) => (
           <Tip key={m} label={<><strong>{MODE_INFO[m].label}</strong><br />{MODE_INFO[m].description}</>}>
             <button
               role="radio" aria-checked={mode === m} data-on={mode === m} data-mode={m}
@@ -81,34 +82,38 @@ export function TopBar({ onOpenSettings }: { onOpenSettings(): void }) {
         </div>
       </Tip>
 
+      <Tip label={config?.eosShow ? `Imported from ${config.eosShow.fileName} on ${new Date(config.eosShow.importedAt).toLocaleDateString()}` : 'Using the built-in sample setup. Import your Eos show from Setup.'}>
+        <div className="show-chip" tabIndex={0}><FileText size={13} aria-hidden /><span className="lbl">{config?.eosShow ? config.eosShow.fileName.replace(/\.[^.]+$/, '') : 'Sample setup'}</span></div>
+      </Tip>
+
       <div className="spacer" />
 
       {role === 'operator' && (
         <Tip label="Bring in the patch, groups, cues, presets and submasters from your Eos show (offline file import; nothing is sent to Eos).">
-          <button className={`btn sm ${config?.eosShow ? '' : 'primary'}`} onClick={() => useApp.getState().setImportOpen(true)}><FileUp size={14} />Import Eos Show</button>
+          <button className={`btn sm ${config?.eosShow ? 'ghost' : 'primary'}`} aria-label="Import Eos Show" onClick={() => useApp.getState().setImportOpen(true)}><FileUp size={14} /><span className="lbl">Import</span></button>
         </Tip>
       )}
       {role === 'operator' && !config?.settings.commissioning.monitorTest?.ok && (
-        <Tip label="Identify the Eos version, check the network, test in Monitor mode, then one authorized single-channel test."><button className="btn sm primary" onClick={onOpenWizard}><Wand2 size={14} />Eos setup</button></Tip>
+        <Tip label="Identify the Eos version, check the network, test in Monitor mode, then one authorized single-channel test."><button className="btn sm primary" aria-label="Eos setup" onClick={onOpenWizard}><Wand2 size={14} /><span className="lbl">Eos setup</span></button></Tip>
       )}
       {role === 'operator' && (
         unlocked
-          ? <Tip label="Relays & utility channels are unlocked. Click to lock now."><button className="btn sm danger" onClick={() => void sendCommand({ kind: 'lockProtected' })}><Unlock size={14} />Protected unlocked</button></Tip>
-          : <Tip label="Relay and utility channels are protected from accidental operation."><button className="btn sm ghost" onClick={() => setUnlockOpen(true)}><Lock size={14} />Protected</button></Tip>
+          ? <Tip label="Relays & utility channels are unlocked. Click to lock now."><button className="btn sm danger" onClick={() => void sendCommand({ kind: 'lockProtected' })}><Unlock size={14} /><span className="lbl">Unlocked</span></button></Tip>
+          : <Tip label="Relay and utility channels are protected from accidental operation."><button className="btn sm ghost safety-ok" aria-label="Protected channels locked" onClick={() => setUnlockOpen(true)}><Lock size={14} /><span className="lbl">Protected</span></button></Tip>
       )}
 
       <div className="mode-switch" role="radiogroup" aria-label="Interface">
-        <button role="radio" aria-checked={uiMode === 'volunteer'} data-on={uiMode === 'volunteer'} data-mode="offline" onClick={() => setUiMode('volunteer')}><Users size={14} />Volunteer</button>
-        <button role="radio" aria-checked={uiMode === 'advanced'} data-on={uiMode === 'advanced'} data-mode="offline" onClick={goAdvanced}><Wrench size={14} />Worship</button>
-        <button role="radio" aria-checked={uiMode === 'architecture'} data-on={uiMode === 'architecture'} data-mode="offline" onClick={() => setUiMode('architecture')}><Building2 size={14} />Architectural</button>
-        {role === 'operator' && <button role="radio" aria-checked={uiMode === 'setup'} data-on={uiMode === 'setup'} data-mode="offline" onClick={() => setUiMode('setup')}><ListChecks size={14} />Setup</button>}
+        <button role="radio" aria-checked={uiMode === 'volunteer'} aria-label="Volunteer" data-on={uiMode === 'volunteer'} data-mode="offline" onClick={() => setUiMode('volunteer')}><Users size={14} /><span className="lbl">Volunteer</span></button>
+        <button role="radio" aria-checked={uiMode === 'advanced'} aria-label="Design" data-on={uiMode === 'advanced'} data-mode="offline" onClick={goAdvanced}><Palette size={14} /><span className="lbl">Design</span></button>
+        <button role="radio" aria-checked={uiMode === 'architecture'} aria-label="Building" data-on={uiMode === 'architecture'} data-mode="offline" onClick={() => setUiMode('architecture')}><Building2 size={14} /><span className="lbl">Building</span></button>
+        {role === 'operator' && <button role="radio" aria-checked={uiMode === 'setup'} aria-label="Setup" data-on={uiMode === 'setup'} data-mode="offline" onClick={() => setUiMode('setup')}><ListChecks size={14} /><span className="lbl">Setup</span></button>}
       </div>
 
       {role
-        ? <Tip label="Sign out"><button className="btn sm" onClick={() => logout()}><LogOut size={14} />{role === 'operator' ? 'Operator' : 'Volunteer'}</button></Tip>
+        ? <Tip label="Sign out"><button className="btn sm" aria-label={`Sign out (${role})`} onClick={() => logout()}><LogOut size={14} /><span className="lbl">{role === 'operator' ? 'Operator' : 'Volunteer'}</span></button></Tip>
         : <button className="btn sm primary" onClick={() => setLoginOpen(true)}><LogIn size={14} />Sign in</button>}
       {status?.defaultPinsInUse && role === 'operator' && (
-        <Tip label="Default PINs are still in use. Change them in Settings → Security."><span className="badge warn"><ShieldAlert size={12} />Default PIN</span></Tip>
+        <Tip label="Default PINs are still in use. Change them in Settings → Security."><span className="badge warn" tabIndex={0}><ShieldAlert size={12} /><span className="lbl">Default PIN</span></span></Tip>
       )}
       <Tip label="Settings"><button className="btn icon" aria-label="Settings" onClick={onOpenSettings} disabled={role !== 'operator'}><Settings size={18} /></button></Tip>
 

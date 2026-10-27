@@ -116,6 +116,8 @@ export interface ServerStatus {
   protectedUnlockedUntil: number | null;
   groupVerification: Record<string, GroupVerification>;
   goBack: GoBackStatus;
+  /** The look most recently played (any mode). Shown as "now" in Volunteer Mode. */
+  activeLook: { id: string; name: string; at: number } | null;
   /** Why volunteers can't use GO/BACK right now (null = an operator approved the master cue list). */
   volunteerPlayback: string | null;
   /** Set when the console reports a different version than the one configured. */

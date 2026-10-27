@@ -14,6 +14,8 @@ Sanctuary Light is tested a lot. **Almost all of that testing is against simulat
 | Verification can't report success from incomplete, old or outdated data | Pure functions | Automated tests | No |
 | Whole Setup workflow in a browser | FAKE console and sample CSV, Chromium | Browser test (screenshots in `docs/screenshots/setup-*.png`) | No |
 | Windows install, supervisor, crash recovery | GitHub's Windows Server runner | CI smoke test | Partly: same Windows family, not the sanctuary PC |
+| Design workspace, Look Designer, look library, simulated crossfades, Volunteer Mode | Sample setup, Chromium at 1920×1080, 1366×768, 1024×768 and 768×1024 | Browser tests (screenshots in `docs/screenshots/phase4a/`), automated tests (`phase4a.test.ts`) | No |
+| New inspector drives Eos as before: SIM preview, Monitor blocked, Live sends `Chan 1 At Full` | FAKE console | Browser test | No |
 | Real install → uninstall; an unrelated program keeps running; settings kept | GitHub's Windows Server runner | CI | Partly: not the sanctuary PC, no Eos or USB key present, and the start-at-sign-in task can't be observed without an interactive sign-in |
 | Test suite can't reach Eos ports (3032, 3036, 3037, 8000, 8001) | Guard in every test run, plus its own test | Automated tests | It protects the real PC during install; it says nothing about Eos |
 | First launch → import → import report → same-PC Monitor connection → verification | FAKE Eos 3.3 on 127.0.0.1, sample CSV, Chromium | Browser test (screenshots `docs/screenshots/first-launch-welcome.png`, `setup-import-report.png`, `setup-connect-same-pc.png`, `setup-verify-same-pc.png`) | No |
