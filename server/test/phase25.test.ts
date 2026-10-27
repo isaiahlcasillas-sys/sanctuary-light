@@ -357,7 +357,8 @@ describe('Against a fake Eos 3.3 console (TCP 3037-style SLIP)', () => {
     eos.received.length = 0;
     await r.c.execute({ kind: 'setMode', mode: 'eos-monitor' }, 'operator');
     await until(() => r.c.status().connection.state === 'connected');
-    await until(() => r.c.status().groupVerification['grp-front'].state !== 'unverified' && r.c.status().groupVerification['grp-stage'].state !== 'unverified');
+    // Wait for every group the tests look at (replies can arrive in any order under load).
+    await until(() => ['grp-front', 'grp-house', 'grp-stage'].every((id) => r.c.status().groupVerification[id].state !== 'unverified'));
     return r;
   }
 

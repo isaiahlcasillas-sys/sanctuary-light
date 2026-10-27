@@ -287,13 +287,13 @@ describe('Import plan (what changes in Sanctuary Light)', () => {
     expect(plan.config.profiles.some((x) => x.id.startsWith('eos-'))).toBe(false);
   });
 
-  it('keeps a large patch inside the stage plan', () => {
+  it('keeps unplaced fixtures out of the stage plan (no invented positions)', () => {
     const lines = ['channel,label,address', ...Array.from({ length: 600 }, (_, i) => `${i + 1},F${i + 1},${i + 1}`)];
     const big = parseShowFile(Buffer.from(lines.join('\n')), 'big.csv');
     const empty = { ...structuredClone(base), fixtures: [] };
     const plan = buildImportPlan(big, empty, opts(big, empty));
     const { width, height } = empty.stage;
-    expect(plan.config.fixtures.every((x) => x.stage.x >= 0 && x.stage.x <= width && x.stage.y >= 0 && x.stage.y <= height)).toBe(true);
+    expect(plan.config.fixtures.every((x) => x.unplaced && x.stage.x >= 0 && x.stage.x <= width && x.stage.y > height)).toBe(true);
     expect(new Set(plan.config.fixtures.map((x) => `${x.stage.x},${x.stage.y}`)).size).toBe(600);
   });
 

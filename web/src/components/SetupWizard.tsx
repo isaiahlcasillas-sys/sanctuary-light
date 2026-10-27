@@ -17,7 +17,9 @@ const STEPS = ['Before you start', 'Eos version', 'Network', 'Monitor test', 'Li
 
 export function SetupWizard({ open, onOpenChange }: { open: boolean; onOpenChange(o: boolean): void }) {
   const config = useApp((s) => s.config);
-  const [step, setStep] = useState(0);
+  const requestedStep = useApp((s) => s.wizardStep);
+  const [step, setStep] = useState(requestedStep);
+  useEffect(() => { if (open) setStep(requestedStep); }, [open, requestedStep]);
   const [draft, setDraft] = useState<Settings | null>(null);
   useEffect(() => { if (open && config) { setDraft(structuredClone(config.settings)); setStep(0); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!config || !draft) return null;
@@ -284,7 +286,9 @@ function LiveTestStep() {
   const status = useApp((s) => s.status);
   const config = useApp((s) => s.config)!;
   const candidates = useMemo(() => config.fixtures.filter((f) => !f.protected), [config.fixtures]);
-  const [channel, setChannel] = useState<number>(candidates.find((f) => f.area === 'front')?.channel ?? candidates[0]?.channel ?? 0);
+  // The fixture approved in the First Real Connection workflow, if one was chosen.
+  const approved = config.settings.commissioning.firstConnection?.testFixture;
+  const [channel, setChannel] = useState<number>(approved && candidates.some((f) => f.channel === approved.channel) ? approved.channel : candidates.find((f) => f.area === 'front')?.channel ?? candidates[0]?.channel ?? 0);
   const [level, setLevel] = useState(50);
   const [typed, setTyped] = useState('');
   const [acks, setAcks] = useState([false, false, false]);

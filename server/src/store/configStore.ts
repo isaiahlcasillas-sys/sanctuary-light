@@ -45,6 +45,13 @@ export function migrateConfig(raw: Partial<AppConfig>, defaults: AppConfig): { c
     },
   } as AppConfig;
   if (!config.profiles.some((p) => p.id === 'generic')) config.profiles.unshift(GENERIC_PROFILE);
+  // Volunteer approval (Phase 3.4): looks that already triggered Eos for volunteers keep
+  // working, but are marked so the operator knows to review them.
+  const grandfathered = config.looks.filter((l) => l.volunteerVisible && l.action.type !== 'none' && l.approval === undefined);
+  if (grandfathered.length) {
+    config.looks = config.looks.map((l) => (grandfathered.includes(l) ? { ...l, approval: { at: Date.now(), note: 'Approved by an earlier configuration, before approvals existed. Review it.' } } : l));
+    notes.push(`${grandfathered.length} volunteer look(s) that trigger Eos were kept available and marked "review": ${grandfathered.map((l) => l.name).join(', ')}.`);
+  }
   return { config, notes };
 }
 

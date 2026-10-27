@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
+import { volunteerCanUseSub } from '@sanctuary/shared';
 import { sendCommand, useApp } from '../state/store';
 import { Fader, Tip } from './ui';
 
 export function SubmasterBank({ volunteer = false }: { volunteer?: boolean }) {
   const subs = useApp((s) => s.config?.submasters ?? []);
   const cap = useApp((s) => s.status?.feedback.capabilities.submasterLevels);
-  const visible = subs.filter((s) => !volunteer || s.volunteerVisible);
+  const visible = subs.filter((s) => !volunteer || volunteerCanUseSub(s));
   if (!visible.length) return null;
   return (
     <section className="panel" aria-label="Submasters">

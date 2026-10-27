@@ -13,6 +13,7 @@ import { SetupWizard } from './components/SetupWizard';
 import { ArchitecturalStatus } from './components/ArchitecturalStatus';
 import { SaveLookButton } from './components/SaveLookButton';
 import { EosImportWizard } from './components/import/EosImportWizard';
+import { SanctuarySetup } from './components/setup/SanctuarySetup';
 
 export function App() {
   const config = useApp((s) => s.config);
@@ -20,15 +21,17 @@ export function App() {
   const role = useApp((s) => s.role);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState('connection');
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const wizardOpen = useApp((s) => s.wizardOpen);
   const advanced = uiMode === 'advanced' && role === 'operator';
 
   return (
     <div className="app">
-      <TopBar onOpenSettings={() => { setSettingsTab('connection'); setSettingsOpen(true); }} onOpenWizard={() => setWizardOpen(true)} />
+      <TopBar onOpenSettings={() => { setSettingsTab('connection'); setSettingsOpen(true); }} />
       <ModeBanner />
       {!config ? (
         <div style={{ display: 'grid', placeItems: 'center' }} className="hint">Connecting to the Sanctuary Light server…</div>
+      ) : uiMode === 'setup' && role === 'operator' ? (
+        <SanctuarySetup />
       ) : uiMode === 'architecture' ? (
         <ArchitecturalStatus onEdit={() => { setSettingsTab('architecture'); setSettingsOpen(true); }} />
       ) : advanced ? (
@@ -49,8 +52,8 @@ export function App() {
       ) : (
         <VolunteerView />
       )}
-      {role === 'operator' && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} initialTab={settingsTab} onOpenWizard={() => setWizardOpen(true)} />}
-      {role === 'operator' && <SetupWizard open={wizardOpen} onOpenChange={setWizardOpen} />}
+      {role === 'operator' && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} initialTab={settingsTab} onOpenWizard={() => useApp.getState().openWizard(0)} />}
+      {role === 'operator' && <SetupWizard open={wizardOpen} onOpenChange={(o) => (o ? useApp.getState().openWizard(useApp.getState().wizardStep) : useApp.getState().closeWizard())} />}
       {role === 'operator' && <EosImportWizard />}
       <Toasts />
     </div>

@@ -118,6 +118,8 @@ export interface ServerStatus {
   goBack: GoBackStatus;
   /** Set when the console reports a different version than the one configured. */
   versionMismatch: string | null;
+  /** Reasons Sanctuary Light's configuration may no longer match the show loaded in Eos. */
+  showWarnings: string[];
   defaultPinsInUse: boolean;
   serverTime: number;
 }

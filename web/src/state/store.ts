@@ -1,12 +1,16 @@
 import { create } from 'zustand';
+import { api } from '../lib/api';
 import type {
-  AppConfig, Command, CommandResult, Fixture, LevelsSnapshot, LogEntry, Role, ServerMessage, ServerStatus, StageElement, Target,
+  AppConfig, AreaId, Command, CommandResult, Fixture, LevelsSnapshot, LogEntry, Role, ServerMessage, ServerStatus, StageElement, Target,
 } from '@sanctuary/shared';
 
 export interface Toast { id: number; kind: 'sent' | 'simulated' | 'blocked' | 'error' | 'info'; message: string }
 
-/** volunteer = Volunteer Mode, advanced = Worship Mode (operator), architecture = Architectural Status. */
-export type UiMode = 'volunteer' | 'advanced' | 'architecture';
+/** volunteer = Volunteer Mode, advanced = Worship Mode (operator), architecture = Architectural Status, setup = Sanctuary Setup (operator). */
+export type UiMode = 'volunteer' | 'advanced' | 'architecture' | 'setup';
+
+/** Steps of the Sanctuary Setup workflow. */
+export type SetupStep = 'import' | 'review' | 'arrange' | 'looks' | 'verify' | 'testing';
 
 interface AppState {
   socketState: 'connecting' | 'open' | 'closed';
@@ -29,6 +33,16 @@ interface AppState {
   clockSkew: number;
   /** The Import Eos Show wizard is open. */
   importOpen: boolean;
+  setupStep: SetupStep;
+  /** Eos Setup Wizard (connection/commissioning) */
+  wizardOpen: boolean;
+  wizardStep: number;
+
+  setSetupStep(step: SetupStep): void;
+  /** Open Sanctuary Setup at a step (operator screen). */
+  goToSetup(step: SetupStep): void;
+  openWizard(step?: number): void;
+  closeWizard(): void;
 
   setImportOpen(open: boolean): void;
   /** After an import: go to the stage and start arranging fixtures. */
@@ -41,6 +55,16 @@ interface AppState {
   rotateFixture(id: string, rotation: number): void;
   moveElement(id: string, x: number, y: number): void;
   discardLayout(): void;
+  /** Layout snapshots for Undo while editing. */
+  layoutHistory: Fixture[][];
+  pushLayoutHistory(): void;
+  undoLayout(): void;
+  /** Line up / align the selected fixtures (draft only). */
+  alignSelection(op: 'line-h' | 'line-v' | 'align-top' | 'align-left'): void;
+  /** Set the category (area) of fixtures in the draft. */
+  setDraftArea(channels: number[], area: AreaId): void;
+  /** Save positions, placement and categories (local file only). */
+  saveLayout(): Promise<boolean>;
   toast(kind: Toast['kind'], message: string): void;
   dismissToast(id: number): void;
 }
@@ -63,13 +87,24 @@ export const useApp = create<AppState>((set, get) => ({
   lastResult: null,
   clockSkew: 0,
   importOpen: false,
+  setupStep: (localStorageGet('sl-setup-step') as SetupStep) ?? 'import',
+  wizardOpen: false,
+  wizardStep: 0,
+
+  setSetupStep(step) { localStorageSet('sl-setup-step', step); set({ setupStep: step }); },
+  goToSetup(step) {
+    localStorageSet('sl-ui-mode', 'setup'); localStorageSet('sl-setup-step', step);
+    set({ uiMode: 'setup', setupStep: step });
+    if (step === 'arrange') get().setEditLayout(true);
+  },
+  openWizard(step = 0) { set({ wizardOpen: true, wizardStep: step }); },
+  closeWizard() { set({ wizardOpen: false }); },
 
   setImportOpen(open) { set({ importOpen: open }); },
   startArranging() {
-    localStorageSet('sl-ui-mode', 'advanced');
     // Start from the imported configuration, not an older unsaved layout draft.
-    set({ importOpen: false, uiMode: 'advanced', draftFixtures: null, draftElements: null, editLayout: false });
-    get().setEditLayout(true);
+    set({ importOpen: false, draftFixtures: null, draftElements: null, editLayout: false });
+    get().goToSetup('arrange');
   },
 
   setUiMode(m) { localStorageSet('sl-ui-mode', m); set({ uiMode: m }); },
@@ -98,7 +133,61 @@ export const useApp = create<AppState>((set, get) => ({
     const list = get().draftElements; if (!list) return;
     set({ draftElements: list.map((e) => (e.id === id ? { ...e, x, y } : e)) });
   },
-  discardLayout() { set({ draftFixtures: null, draftElements: null, editLayout: false }); },
+  discardLayout() { set({ draftFixtures: null, draftElements: null, editLayout: false, layoutHistory: [] }); },
+  layoutHistory: [],
+  pushLayoutHistory() {
+    const d = get().draftFixtures; if (!d) return;
+    set({ layoutHistory: [...get().layoutHistory.slice(-49), d] });
+  },
+  undoLayout() {
+    const h = get().layoutHistory; if (!h.length) return;
+    set({ draftFixtures: h[h.length - 1], layoutHistory: h.slice(0, -1) });
+  },
+  alignSelection(op) {
+    const list = get().draftFixtures; const sel = new Set(get().selection);
+    if (!list) return;
+    const chosen = list.filter((f) => sel.has(f.channel));
+    if (chosen.length < 2) { get().toast('info', 'Select two or more fixtures first (shift-click or shift-drag).'); return; }
+    get().pushLayoutHistory();
+    const horizontal = op === 'line-h' || op === 'align-top';
+    const sorted = [...chosen].sort((a, b) => (horizontal ? a.stage.x - b.stage.x : a.stage.y - b.stage.y));
+    const avg = (k: 'x' | 'y') => Math.round(chosen.reduce((n, f) => n + f.stage[k], 0) / chosen.length);
+    const first = sorted[0].stage; const last = sorted[sorted.length - 1].stage;
+    const pos = new Map<string, { x: number; y: number }>();
+    sorted.forEach((f, i) => {
+      const t = sorted.length > 1 ? i / (sorted.length - 1) : 0;
+      if (op === 'line-h') pos.set(f.id, { x: Math.round(first.x + (last.x - first.x) * t), y: avg('y') });
+      else if (op === 'line-v') pos.set(f.id, { x: avg('x'), y: Math.round(first.y + (last.y - first.y) * t) });
+      else if (op === 'align-top') pos.set(f.id, { x: f.stage.x, y: avg('y') });
+      else pos.set(f.id, { x: avg('x'), y: f.stage.y });
+    });
+    set({ draftFixtures: list.map((f) => (pos.has(f.id) ? { ...f, stage: { ...f.stage, ...pos.get(f.id)! } } : f)) });
+  },
+  setDraftArea(channels, area) {
+    const list = get().draftFixtures; if (!list) return;
+    get().pushLayoutHistory();
+    const set2 = new Set(channels);
+    set({ draftFixtures: list.map((f) => (set2.has(f.channel) ? { ...f, area } : f)) });
+  },
+  async saveLayout() {
+    const st = get();
+    const cfg = st.config;
+    if (!cfg) return false;
+    const draft = new Map((st.draftFixtures ?? []).map((f) => [f.id, f]));
+    try {
+      await api.put('/api/config/fixtures', cfg.fixtures.map((f) => {
+        const d = draft.get(f.id);
+        return d ? { ...f, stage: d.stage, area: d.area, unplaced: d.unplaced || undefined } : f;
+      }));
+      await api.put('/api/config/stage', { ...cfg.stage, elements: st.draftElements ?? cfg.stage.elements });
+      set({ draftFixtures: null, draftElements: null, editLayout: false, layoutHistory: [] });
+      st.toast('info', 'Arrangement saved on this computer. The Eos show file was not changed.');
+      return true;
+    } catch (e) {
+      st.toast('error', `Could not save the arrangement: ${(e as Error).message}`);
+      return false;
+    }
+  },
   toast(kind, message) {
     const id = Date.now() + Math.random();
     // Collapse identical consecutive messages
@@ -153,7 +242,7 @@ function handle(msg: ServerMessage) {
     case 'auth':
       sessionStorageSet('sl-token', msg.token);
       set({ role: msg.role, token: msg.token, authError: msg.error ?? null });
-      if (!msg.role && useApp.getState().uiMode === 'advanced' && !msg.error) set({ uiMode: 'volunteer' });
+      if (!msg.role && ['advanced', 'setup'].includes(useApp.getState().uiMode) && !msg.error) set({ uiMode: 'volunteer' });
       break;
     case 'status': set({ status: msg.status, clockSkew: Date.now() - msg.status.serverTime }); break;
     case 'levels': set({ levels: msg.levels }); break;

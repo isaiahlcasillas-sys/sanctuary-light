@@ -188,6 +188,9 @@ export interface EosShowReference {
   counts: { channels: number; groups: number; cueLists: number; cues: number; subs: number; palettes: number };
 }
 
+/** Top of the "not yet placed" holding area, below the stage plan. */
+export const unplacedAreaTop = (stageHeight: number) => stageHeight + 40;
+
 const RELAY_RE = /\b(relay|contactor|non[- ]?dim|nondim|utility power|house power)\b/i;
 
 /** Map an Eos parameter name to the Sanctuary Light parameter it controls, if any. */
@@ -328,12 +331,10 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
     for (const g of show.groups) for (const c of g.channels) if (!firstGroup.has(c)) firstGroup.set(c, g.number);
     const toPlace = show.channels.filter((c) => !localByChan.has(c.channel))
       .sort((a, b) => (firstGroup.get(a.channel) ?? 1e9) - (firstGroup.get(b.channel) ?? 1e9) || a.channel - b.channel);
-    // Rows of fixtures along the bottom of the stage, growing upwards but never past the top.
-    const maxRows = Math.max(1, Math.floor((cfg.stage.height - 60) / 52));
-    const perRow = Math.max(Math.floor((cfg.stage.width - 80) / 56), Math.ceil(toPlace.length / maxRows), 1);
-    const dx = Math.max(12, (cfg.stage.width - 80) / perRow);
-    const dy = Math.min(52, (cfg.stage.height - 60) / Math.max(1, Math.ceil(toPlace.length / perRow)));
-    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: Math.round(60 + (i % perRow) * dx), y: Math.round(cfg.stage.height - 50 - Math.floor(i / perRow) * dy), rotation: 0 }]));
+    // An export says nothing about where lights hang, so no position is invented: new fixtures
+    // wait in a "not yet placed" holding area BELOW the stage plan until someone places them.
+    const perRow = Math.max(1, Math.floor((cfg.stage.width - 80) / 56));
+    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: 60 + (i % perRow) * 56, y: unplacedAreaTop(cfg.stage.height) + 40 + Math.floor(i / perRow) * 52, rotation: 0 }]));
     const usedIds = new Set(current.fixtures.map((f) => f.id));
 
     for (const ch of show.channels) {
@@ -359,6 +360,7 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         // The operator's own notes win; the Eos type is kept separately in eosType.
         notes: local?.notes || [ch.manufacturer, ch.fixtureType].filter(Boolean).join(' ') || undefined,
         eosType: ch.fixtureType ?? local?.eosType,
+        eosLabel: ch.label || local?.eosLabel,
         unplaced: local ? local.unplaced : true,
       };
       if (!local) {
@@ -404,10 +406,11 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
       const fromEos: FixtureGroup = {
         id: local?.id ?? `grp-eos-${g.number}`, name: g.label || `Group ${g.number}`,
         color: local?.color ?? GROUP_COLORS[i % GROUP_COLORS.length], channels: [...g.channels].sort((a, b) => a - b),
-        eosGroup: g.number, volunteerVisible: local?.volunteerVisible ?? false,
+        eosGroup: g.number, volunteerVisible: local?.volunteerVisible ?? false, eosLabel: g.label,
       };
       if (!local) { out.push(fromEos); changes.groups.added++; return; }
-      if (same(local.channels, g.channels) && local.name === fromEos.name) { out.push(local); changes.groups.unchanged++; return; }
+      // A local (volunteer-facing) name is the operator's choice: only channel changes conflict.
+      if (same(local.channels, g.channels) && (local.name === fromEos.name || local.eosLabel === g.label)) { out.push({ ...local, eosLabel: g.label }); changes.groups.unchanged++; return; }
       if (!replace) {
         conflicts.push({
           kind: 'group', key: `Group ${g.number}`,
@@ -415,7 +418,8 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
           resolution: useImported ? 'used-imported' : 'kept-local',
         });
       }
-      out.push(useImported ? fromEos : local);
+      // Using Eos data updates the channels; a renamed group keeps its local name.
+      out.push(useImported ? { ...fromEos, name: local.eosLabel !== undefined && local.name !== local.eosLabel ? local.name : fromEos.name } : { ...local, eosLabel: g.label });
       if (useImported) changes.groups.updated++; else changes.groups.unchanged++;
     });
     if (replace) {
@@ -470,6 +474,8 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         sub: s.number, label: s.label || `Sub ${s.number}`,
         volunteerVisible: local?.volunteerVisible ?? false,
         protected: (local?.protected ?? false) || touchesProtected,
+        // A submaster can control anything in Eos: volunteers need an operator's approval.
+        fromEos: true, approval: local?.approval ?? null,
       };
       if (!local) { out.push(fromEos); changes.submasters.added++; continue; }
       if (local.label === fromEos.label && local.protected === fromEos.protected) { out.push(local); changes.submasters.unchanged++; continue; }
@@ -500,6 +506,7 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         action: { type: 'cue', list: list!.list, cue: q.cue },
         preview: [],
         volunteerVisible: false,
+        approval: null, // importing a cue is never approval
       });
     }
     changes.looks.added = looks.length;
