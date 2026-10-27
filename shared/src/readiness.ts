@@ -68,7 +68,7 @@ export function assessReadiness(input: ReadinessInput): ReadinessReport {
 
   add(c.recoveryObservedAt
     ? { id: 'recovery', label: 'Connection recovery observed', status: 'pass', detail: `The app lost and regained the console on ${new Date(c.recoveryObservedAt).toLocaleString()}.`, fix: '' }
-    : { id: 'recovery', label: 'Connection recovery observed', status: 'warn', detail: 'The app has not yet been seen reconnecting after losing the console.', fix: 'In Monitor mode, outside worship: if Eos runs on this PC, close and reopen Eos; otherwise unplug this computer\'s network cable for ~20 s (docs/FIRST_DAY_TESTING.md, step M5).' });
+    : { id: 'recovery', label: 'Connection recovery observed', status: 'warn', detail: 'The app has not yet been seen reconnecting after losing the console.', fix: 'Don\'t close Eos just for this. If Eos runs on this PC, observe it during the SceneStation audit (worksheet part D2), with Sanctuary Light in Monitor. If Eos runs on a separate console, unplug only this computer\'s own network cable for ~20 s (docs/FIRST_DAY_TESTING.md, step M5).' });
 
   const protectedCount = cfg.fixtures.filter((f) => f.protected).length;
   add(protectedCount

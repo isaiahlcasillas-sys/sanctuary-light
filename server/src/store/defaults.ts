@@ -222,8 +222,8 @@ export function defaultConfig(): AppConfig {
       ],
     }],
     submasters: [
-      { sub: 1, label: 'House Lights', volunteerVisible: true, protected: false },
-      { sub: 2, label: 'Stage Wash', volunteerVisible: true, protected: false },
+      { sub: 1, label: 'House Lights', volunteerVisible: false, protected: false },
+      { sub: 2, label: 'Stage Wash', volunteerVisible: false, protected: false },
       { sub: 3, label: 'Front Light', volunteerVisible: false, protected: false },
       { sub: 4, label: 'Scenic', volunteerVisible: false, protected: false },
     ],

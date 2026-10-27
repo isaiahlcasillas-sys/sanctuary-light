@@ -116,6 +116,8 @@ export interface ServerStatus {
   protectedUnlockedUntil: number | null;
   groupVerification: Record<string, GroupVerification>;
   goBack: GoBackStatus;
+  /** Why volunteers can't use GO/BACK right now (null = an operator approved the master cue list). */
+  volunteerPlayback: string | null;
   /** Set when the console reports a different version than the one configured. */
   versionMismatch: string | null;
   /** Reasons Sanctuary Light's configuration may no longer match the show loaded in Eos. */

@@ -8,7 +8,7 @@
  *   5. reports back exactly which of those happened.
  */
 import {
-  MODE_INFO, clamp, compareShow, eosCapabilities, fingerprint, outdatedWarnings, parseEosVersion, readState, volunteerCanUseLook, volunteerCanUseSub,
+  MODE_INFO, clamp, compareShow, eosCapabilities, fingerprint, localFingerprint, outdatedWarnings, parseEosVersion, readState, volunteerCanUseLook, volunteerCanUseSub, volunteerPlaybackBlock,
   type ConsoleSnapshot, type FirstConnectionRecord, type VerificationReport,
   type CommissioningRecord, type GoBackStatus, type GroupVerification,
   type AppConfig, type Capability, type Command, type CommandResult, type CueFeedback, type FeedbackCapability,
@@ -176,6 +176,7 @@ export class Controller {
       protectedUnlockedUntil: this.protectedUnlockedUntil,
       groupVerification: this.groupVerification(now),
       goBack: this.goBackStatus(),
+      volunteerPlayback: this.volunteerPlaybackBlock(),
       versionMismatch: this.versionMismatch(),
       showWarnings: this.mode === 'offline' ? [] : outdatedWarnings(this.cfg, { showName: this.showName, consoleChangedAt: this.consoleChangedAt, connected: conn.state === 'connected' }, null),
       defaultPinsInUse: this.defaultPins(),
@@ -235,6 +236,13 @@ export class Controller {
   }
 
   // ───────────────────────────── GO / BACK ─────────────────────────────
+
+  /** Why volunteers can't use GO/BACK on the master cue list right now (null = they can). */
+  volunteerPlaybackBlock(): string | null {
+    const list = this.cfg.settings.masterCueList;
+    const reported = this.mode === 'offline' ? null : this.syncResult?.cueLists.find((l) => l.list === list);
+    return volunteerPlaybackBlock(this.cfg, list, this.goBackStatus(list).method, reported ? reported.cues.map((c) => c.cue) : null);
+  }
 
   goBackStatus(list = this.cfg.settings.masterCueList): GoBackStatus {
     const c = this.cfg.settings.connection;
@@ -659,6 +667,15 @@ export class Controller {
         if (a.type === 'macro' && role !== 'operator') {
           return { ok: false, delivery: 'blocked', message: 'Macro looks are operator-only — a macro can do anything on the console.' };
         }
+        // A look must not get round the protections that guard the same sub or group directly.
+        const unlocked = !!(this.protectedUnlockedUntil && this.protectedUnlockedUntil > Date.now());
+        if (a.type === 'sub' && !unlocked && this.cfg.submasters.find((s) => s.sub === a.sub)?.protected) {
+          return { ok: false, delivery: 'blocked', message: `“${look.name}” uses Sub ${a.sub}, which is protected. Unlock protected controls first.` };
+        }
+        if (a.type === 'preset' && !unlocked) {
+          const prot = this.cfg.groups.filter((g) => g.eosGroup === a.eosGroup).flatMap((g) => this.resolve({ type: 'group', groupId: g.id }).fixtures).filter((f) => f.protected);
+          if (prot.length) return this.protectedBlocked(prot);
+        }
         const build = (): OscMessage[] => {
           switch (a.type) {
             case 'cue': return b.fireCue(a.list, a.cue);
@@ -699,6 +716,10 @@ export class Controller {
           return { ok: false, delivery: 'blocked', message: `Volunteers can only GO/BACK the master cue list (${master}).` };
         }
         const gb = this.goBackStatus(list);
+        if (role === 'volunteer') {
+          const why = this.volunteerPlaybackBlock();
+          if (why) return { ok: false, delivery: 'blocked', message: why };
+        }
         if (gb.method === 'keys' && list !== master) {
           return { ok: false, delivery: 'error', message: `GO/BACK use console keys on this Eos version, which act on the master playback — they can't target cue list ${list}.` };
         }
@@ -735,7 +756,7 @@ export class Controller {
       case 'setSub': {
         const sub = this.cfg.submasters.find((s) => s.sub === cmd.sub);
         if (role === 'volunteer' && !sub?.volunteerVisible) return { ok: false, delivery: 'blocked', message: 'This submaster is operator-only.' };
-        if (role === 'volunteer' && sub && !volunteerCanUseSub(sub)) return { ok: false, delivery: 'blocked', message: `Sub ${sub.sub} came from the Eos show and hasn't been approved for volunteers yet.` };
+        if (role === 'volunteer' && sub && !volunteerCanUseSub(sub)) return { ok: false, delivery: 'blocked', message: `Sub ${sub.sub} hasn't been approved for volunteers yet. Ask the lighting lead.` };
         if (sub?.protected && !(this.protectedUnlockedUntil && this.protectedUnlockedUntil > Date.now())) {
           return { ok: false, delivery: 'blocked', message: `Sub ${cmd.sub} is protected. Unlock protected controls first.` };
         }
@@ -814,7 +835,7 @@ export class Controller {
     try {
       const next = this.store.update('verification', {
         at: Date.now(), showName: snap.showName, consoleVersion: snap.consoleVersion, simulatedConsole: report.simulatedConsole,
-        summary: report.summary, fingerprint: fingerprint(snap),
+        summary: report.summary, fingerprint: fingerprint(snap), localFingerprint: localFingerprint(this.cfg),
       }, { backup: false });
       this.broadcast({ t: 'config', config: next });
       const s = report.summary;

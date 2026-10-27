@@ -82,7 +82,7 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
       if (!Array.isArray(list)) return 'Submasters must be a list';
       for (const s of list) {
         if (!isInt(s.sub, 1)) return 'Submaster numbers must be positive';
-        if (s.volunteerVisible && s.fromEos && !s.approval) return `Sub ${s.sub} (${s.label}) came from the Eos show: an operator must review and approve it before volunteers can use it.`;
+        if (s.volunteerVisible && !s.approval) return `Sub ${s.sub} (${s.label}) moves the real Eos submaster, whatever it contains: an operator must review and approve it before volunteers can use it.`;
       }
       return null;
     }

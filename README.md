@@ -84,7 +84,7 @@ Then sign in as operator, open **Eos setup**, enter the version you started the 
 
 ## Interface modes
 
-* **Volunteer**: big worship looks, GO/BACK, approved house lights.
+* **Volunteer**: big worship looks, approved submasters, and GO/BACK once an operator has approved the master cue list.
 * **Worship**: full visual control through Eos (operator PIN).
 * **Architectural Status**: how the SceneStation wall stations relate to Eos, from the physical audit. **Read-only: Sanctuary Light does not control SceneStation.**
 
@@ -141,7 +141,7 @@ Every command returns one of `sent`, `simulated`, `blocked` or `error`, and the 
 * The app starts offline, and live mode is never restored automatically after a restart.
 * **Nothing is sent** when you disconnect, change mode, lose the network or close the app. There is no blackout and no "release". Eos keeps its state.
 * **Protected channels**: relays and utility (61–70 by default) are refused until an operator unlocks them. The unlock is time-limited (5 min), and it applies in every mode. Protected submasters work the same way.
-* Volunteers can only fire volunteer-visible looks, GO/BACK, fire cues, and adjust volunteer-visible groups and submasters.
+* Volunteers can only fire approved looks and their cues, use approved submasters, GO/BACK on an approved master cue list (cue-list addressing only, never console keys), and adjust volunteer-visible groups (never protected channels).
 * Fader updates are rate-limited (10/s by default, latest value wins), so Eos's command line is never flooded.
 * Use a dedicated **OSC user** (*Settings → Connection*). Command-line commands then go to `/eos/user/<n>/...` and never type into the operator's command line in Eos.
 * **Connecting requires a confirmed Eos version.** Ports and features are checked against it, so the app refuses TCP 3037 before Eos 3.1, for example. See [`docs/EOS_OSC.md`](docs/EOS_OSC.md).
@@ -177,7 +177,7 @@ docs/              EOS_OSC.md (implemented commands + Eos setup), PHASE5_DIRECT_
 **Setup** (top bar, operator) is the guided path: **Import my Eos show → Review fixtures → Arrange sanctuary → Worship looks → Verify with Eos → Supervised testing**. See [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md).
 
 - **Show Verification** compares the configuration with what Eos actually reports (read-only, Monitor mode). It shows matches, differences, missing/extra channels, cue-list differences and unverified groups, and warns when the show in Eos changes afterwards.
-- **Looks that trigger Eos need an operator's approval** before Volunteer Mode shows them. Volunteers can only fire approved cues.
+- **Looks that trigger Eos, every submaster, and volunteer GO/BACK need an operator's approval.** Volunteers can only fire approved cues; GO/BACK need the whole master cue list reviewed. Nothing is approved automatically.
 - **First Real Connection** is a 7-step supervised checklist for the sanctuary PC ([`docs/FIRST_REAL_CONNECTION.md`](docs/FIRST_REAL_CONNECTION.md)).
 
 ![Show Verification](docs/screenshots/setup-verify.png)

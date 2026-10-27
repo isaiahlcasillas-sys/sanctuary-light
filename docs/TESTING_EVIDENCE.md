@@ -10,7 +10,8 @@ Sanctuary Light is tested a lot. **Almost all of that testing is against simulat
 | Import plan: merge/replace, protections, no invented data | Sample files | Automated tests | No |
 | OSC commands, Monitor read-only gate, group verification | **FAKE console** (`server/tools/fake-eos.ts`) | Automated tests | No |
 | Show Verification: patch/cue/group comparison, incomplete reads, change warnings | FAKE console serving the sample show | Automated tests and browser test | No |
-| Volunteer approval enforcement | In-process controller | Automated tests | It tests Sanctuary Light's rule, not Eos |
+| Volunteer approval enforcement (looks, cues, submasters, GO/BACK, every command kind) | In-process controller | Automated tests, plus a browser check of GO/BACK approval | It tests Sanctuary Light's rule, not Eos |
+| Verification can't report success from incomplete, old or outdated data | Pure functions | Automated tests | No |
 | Whole Setup workflow in a browser | FAKE console and sample CSV, Chromium | Browser test (screenshots in `docs/screenshots/setup-*.png`) | No |
 | Windows install, supervisor, crash recovery | GitHub's Windows Server runner | CI smoke test | Partly: same Windows family, not the sanctuary PC |
 

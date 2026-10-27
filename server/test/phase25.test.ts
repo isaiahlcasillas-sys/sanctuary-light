@@ -270,7 +270,7 @@ function makeController(mutate?: (cfg: AppConfig) => void) {
 describe('GO/BACK method selection (offline simulation)', () => {
   it('uses cue-list addresses on Eos 3.3 and keys on Eos 2.9', async () => {
     const a = makeController((cfg) => { cfg.settings.connection.eosVersion = '3.3.10'; });
-    const go = await a.c.execute({ kind: 'go' }, 'volunteer');
+    const go = await a.c.execute({ kind: 'go' }, 'operator');
     expect(go).toMatchObject({ delivery: 'simulated', osc: ['/eos/cues/1/fire'] });
     expect((await a.c.execute({ kind: 'back', list: 2 }, 'operator')).osc).toEqual(['/eos/cues/2/stop']);
     expect(a.c.status().goBack).toMatchObject({ method: 'cue-list', list: 1 });
@@ -409,7 +409,11 @@ describe('Against a fake Eos 3.3 console (TCP 3037-style SLIP)', () => {
   });
 
   it('GO/BACK target the configured cue list and update cue feedback', async () => {
-    const { c } = await connected();
+    // Volunteers can step only through a cue list an operator has reviewed and approved.
+    const { c } = await connected((cfg) => {
+      const l1 = cfg.cueLists.find((l) => l.list === 1)!;
+      l1.playbackApproval = { at: 1, note: 'test', cues: l1.cues.map((q) => q.cue) };
+    });
     await c.execute({ kind: 'setMode', mode: 'eos-live', confirm: true }, 'operator');
     await c.execute({ kind: 'go' }, 'volunteer');
     await until(() => eos.received.includes('/eos/cues/1/fire'));

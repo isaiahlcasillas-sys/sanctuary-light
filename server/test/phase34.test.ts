@@ -8,8 +8,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  buildImportPlan, compareShow, defaultImportOptions, firstConnectionSteps, normalizeLookApprovals, normalizeSubApprovals, outdatedWarnings,
-  readState, versionMatches, volunteerCanUseLook, type AppConfig, type ConsoleSnapshot, type Look,
+  buildImportPlan, compareShow, defaultImportOptions, firstConnectionSteps, localFingerprint, normalizeLookApprovals, normalizeSubApprovals, outdatedWarnings,
+  normalizeCueListApprovals, playbackApproved, readState, versionMatches, volunteerCanUseLook, volunteerPlaybackBlock, type AppConfig, type ConsoleSnapshot, type Look,
 } from '@sanctuary/shared';
 import { Controller } from '../src/controller';
 import { parseShowFile } from '../src/import';
@@ -69,7 +69,7 @@ describe('compareShow (pure)', () => {
     // Groups were never read from the console: unknown, not "match".
     expect(r.items.filter((i) => i.section === 'groups').every((i) => i.status === 'unknown')).toBe(true);
     expect(r.items.filter((i) => i.status === 'unsupported').map((i) => i.key)).toEqual(expect.arrayContaining(['Submaster contents', 'Presets & palettes', 'Cue timing, effects, macros']));
-    expect(r.items.find((i) => i.key === 'Loaded show')!.status).toBe('unknown');
+    expect(r.items.find((i) => i.key === 'Loaded show')!.status).toBe('unsupported');
   });
 
   it('finds differences, missing and extra channels, and cue list differences', () => {
@@ -187,7 +187,7 @@ describe('Show Verification against the FAKE console (simulated)', () => {
     expect(r.state).toBe('complete');
     expect(r.summary['missing-in-eos']).toBe(0);
     expect(r.progress!.patch.received).toBe(r.progress!.patch.expected);
-    expect(store.get().verification!.summary.unknown).toBe(1); // only "Loaded show"; groups were waited for
+    expect(store.get().verification!.summary.unknown).toBe(0); // groups were waited for
     c.shutdown();
   });
 
@@ -227,7 +227,7 @@ describe('Volunteer approval', () => {
     expect(subs[0]).toMatchObject({ fromEos: true, approval: null });
   });
 
-  it('refuses to save an unapproved Eos look as volunteer-visible, and imported subs too', () => {
+  it('refuses to save an unapproved Eos look or sub as volunteer-visible', () => {
     const store = new ConfigStore(tmp());
     expect(() => store.update('looks', [{ ...cueLook, volunteerVisible: true }])).toThrow(/approve/);
     expect(() => store.update('submasters', [{ sub: 1, label: 'House', volunteerVisible: true, protected: false, fromEos: true }])).toThrow(/approve/);
@@ -265,12 +265,146 @@ describe('Volunteer approval', () => {
     }
   });
 
-  it('keeps existing volunteer looks working after the update, marked for review', () => {
+  it('never approves anything automatically when an older configuration is updated', () => {
     const old = defaultConfig() as Partial<AppConfig>;
     old.looks = [{ ...cueLook, volunteerVisible: true }];
+    old.submasters = [{ sub: 1, label: 'House Lights', volunteerVisible: true, protected: false }];
     const { config, notes } = migrateConfig(old, defaultConfig());
-    expect(config.looks[0].approval?.note).toMatch(/earlier configuration/);
-    expect(notes.join(' ')).toMatch(/marked "review"/);
+    expect(config.looks[0]).toMatchObject({ volunteerVisible: false, approval: null });
+    expect(config.submasters[0]).toMatchObject({ volunteerVisible: false, approval: null });
+    expect(notes.join(' ')).toMatch(/hidden until an operator approves/);
+  });
+});
+
+describe('Volunteer bypass audit: every volunteer action is authorised on the server', () => {
+  const approval = { at: 1, note: 'x' };
+  const listApproval = (cfg: AppConfig, list = 1) => {
+    const l = cfg.cueLists.find((x) => x.list === list)!;
+    return { ...approval, cues: l.cues.map((q) => q.cue) };
+  };
+  function controller(mutate?: (cfg: AppConfig) => void) {
+    const store = new ConfigStore(tmp());
+    const cfg = store.get();
+    cfg.settings.connection.eosVersion = '3.3.10'; // documented cue-list GO/BACK
+    mutate?.(cfg);
+    store.replaceAll(cfg);
+    return { c: new Controller(store, () => undefined, () => false), store };
+  }
+
+  it('volunteers can only send the command kinds Volunteer Mode needs', async () => {
+    const { c } = controller();
+    const operatorOnly: Parameters<Controller['execute']>[0][] = [
+      { kind: 'setColor', target: { type: 'group', groupId: 'grp-front' }, rgb: { r: 1, g: 1, b: 1 } },
+      { kind: 'setParam', target: { type: 'group', groupId: 'grp-front' }, param: 'pan', value: 1 },
+      { kind: 'release', target: { type: 'group', groupId: 'grp-front' } },
+      { kind: 'singleChannelTest', channel: 20, level: 50, confirmChannel: 20 },
+      { kind: 'verifyGroups' }, { kind: 'setMode', mode: 'eos-live', confirm: true },
+      { kind: 'unlockProtected', confirm: true }, { kind: 'lockProtected' }, { kind: 'syncFromConsole' },
+    ];
+    for (const cmd of operatorOnly) expect((await c.execute(cmd, 'volunteer')).message, cmd.kind).toMatch(/operator PIN/);
+    expect((await c.execute({ kind: 'go' }, null)).delivery).toBe('blocked');
+    c.shutdown();
+  });
+
+  it('GO, BACK (Stop/Back) are operator-only until an operator approves the whole master cue list', async () => {
+    const { c } = controller();
+    for (const kind of ['go', 'back'] as const) {
+      const r = await c.execute({ kind }, 'volunteer');
+      expect(r).toMatchObject({ ok: false, delivery: 'blocked' });
+      expect(r.message).toMatch(/hasn't been reviewed and approved/);
+      expect((await c.execute({ kind }, 'operator')).ok).toBe(true);
+    }
+    expect(c.status().volunteerPlayback).toMatch(/approved/);
+    c.shutdown();
+
+    const ok = controller((cfg) => { cfg.cueLists[0].playbackApproval = listApproval(cfg); });
+    expect(ok.c.status().volunteerPlayback).toBeNull();
+    expect((await ok.c.execute({ kind: 'go' }, 'volunteer')).ok).toBe(true);
+    expect((await ok.c.execute({ kind: 'back' }, 'volunteer')).ok).toBe(true);
+    // Another list is still operator-only, approved or not.
+    expect((await ok.c.execute({ kind: 'go', list: 2 }, 'volunteer')).delivery).toBe('blocked');
+    ok.c.shutdown();
+  });
+
+  it('fails safe when GO/BACK are console keys (the master playback can hold any cue list)', async () => {
+    const { c } = controller((cfg) => {
+      cfg.settings.connection.eosVersion = '2.9.3';
+      cfg.cueLists[0].playbackApproval = listApproval(cfg);
+    });
+    expect(c.status().goBack.method).toBe('keys');
+    expect((await c.execute({ kind: 'go' }, 'volunteer')).message).toMatch(/can't tell which cue list/);
+    expect((await c.execute({ kind: 'back' }, 'volunteer')).delivery).toBe('blocked');
+    expect((await c.execute({ kind: 'go' }, 'operator')).ok).toBe(true);
+    c.shutdown();
+  });
+
+  it('withdraws a cue list approval when its cues change, when it is imported again, or when Eos reports different cues', () => {
+    const cfg = defaultConfig();
+    const l1 = cfg.cueLists[0];
+    const approved = { ...l1, playbackApproval: listApproval(cfg) };
+    expect(playbackApproved(approved)).toBe(true);
+    // Labels may change; cue numbers may not.
+    expect(normalizeCueListApprovals([approved], [{ ...approved, cues: approved.cues.map((q) => ({ ...q, label: 'x' })) }]).cueLists[0].playbackApproval).not.toBeNull();
+    const added = normalizeCueListApprovals([approved], [{ ...approved, cues: [...approved.cues, { cue: '99', label: 'new' }] }]);
+    expect(added.cueLists[0].playbackApproval).toBeNull();
+    expect(added.withdrawn).toEqual([l1.list]);
+    // An ordinary save can't create one.
+    expect(normalizeCueListApprovals([l1], [approved]).cueLists[0].playbackApproval).toBeNull();
+    // Eos reports a different list.
+    const withApproval = { ...cfg, cueLists: [approved, ...cfg.cueLists.slice(1)] };
+    expect(volunteerPlaybackBlock(withApproval, l1.list, 'cue-list', approved.playbackApproval.cues)).toBeNull();
+    expect(volunteerPlaybackBlock(withApproval, l1.list, 'cue-list', ['1', '2'])).toMatch(/Eos reports different cues/);
+    // Import never carries an approval over.
+    const show = parseShowFile(fs.readFileSync(path.join(__dirname, 'fixtures', 'eos-import', 'eos-export.csv')), 'x.csv');
+    const imported = importedConfig();
+    imported.cueLists = imported.cueLists.map((l) => ({ ...l, playbackApproval: { ...approval, cues: l.cues.map((q) => q.cue) } }));
+    for (const mode of ['merge', 'replace'] as const) {
+      const plan = buildImportPlan(show, imported, { ...defaultImportOptions(show, imported), mode });
+      expect(plan.config.cueLists.every((l) => !l.playbackApproval), mode).toBe(true);
+      expect(plan.notices.some((n) => /GO\/BACK approval withdrawn/.test(n.message))).toBe(true);
+    }
+  });
+
+  it('every submaster needs approval, imported or not, and protected subs stay locked', async () => {
+    const store = new ConfigStore(tmp());
+    expect(() => store.update('submasters', [{ sub: 1, label: 'House Lights', volunteerVisible: true, protected: false }])).toThrow(/approve/);
+    store.update('submasters', [
+      { sub: 1, label: 'House Lights', volunteerVisible: false, protected: false },
+      { sub: 2, label: 'Wash', volunteerVisible: true, protected: false, approval },
+      { sub: 3, label: 'Relay', volunteerVisible: true, protected: true, approval },
+    ]);
+    const c = new Controller(store, () => undefined, () => false);
+    expect((await c.execute({ kind: 'setSub', sub: 1, value: 50 }, 'volunteer')).delivery).toBe('blocked');
+    expect((await c.execute({ kind: 'setSub', sub: 2, value: 50 }, 'volunteer')).ok).toBe(true);
+    expect((await c.execute({ kind: 'setSub', sub: 3, value: 50 }, 'volunteer')).message).toMatch(/protected/);
+    expect((await c.execute({ kind: 'setSub', sub: 7, value: 50 }, 'volunteer')).delivery).toBe('blocked');
+    c.shutdown();
+  });
+
+  it('a look cannot get round the protection on the sub or group it uses', async () => {
+    const { c } = controller((cfg) => {
+      cfg.submasters = [{ sub: 3, label: 'Relay', volunteerVisible: false, protected: true }];
+      cfg.groups.find((g) => g.id === 'grp-utility')!.eosGroup = 9;
+      cfg.looks.push(
+        { id: 'sub-look', name: 'Sub look', description: '', icon: 'sun', gradient: ['#000', '#111'], action: { type: 'sub', sub: 3, level: 100 }, preview: [], volunteerVisible: true, approval },
+        { id: 'preset-look', name: 'Preset look', description: '', icon: 'sun', gradient: ['#000', '#111'], action: { type: 'preset', preset: 1, eosGroup: 9 }, preview: [], volunteerVisible: true, approval },
+      );
+    });
+    for (const role of ['volunteer', 'operator'] as const) {
+      expect((await c.execute({ kind: 'fireLook', lookId: 'sub-look' }, role)).message).toMatch(/protected/);
+      expect((await c.execute({ kind: 'fireLook', lookId: 'preset-look' }, role)).message).toMatch(/protected/i);
+    }
+    await c.execute({ kind: 'unlockProtected', confirm: true }, 'operator');
+    expect((await c.execute({ kind: 'fireLook', lookId: 'sub-look' }, 'operator')).ok).toBe(true);
+    c.shutdown();
+  });
+
+  it('volunteer intensity only reaches volunteer groups, never protected channels', async () => {
+    const { c } = controller((cfg) => { cfg.groups.find((g) => g.id === 'grp-utility')!.volunteerVisible = true; });
+    expect((await c.execute({ kind: 'setIntensity', target: { type: 'channels', channels: [20] }, value: 50 }, 'volunteer')).delivery).toBe('blocked');
+    expect((await c.execute({ kind: 'setIntensity', target: { type: 'group', groupId: 'grp-scenic' }, value: 50 }, 'volunteer')).delivery).toBe('blocked');
+    expect((await c.execute({ kind: 'setIntensity', target: { type: 'group', groupId: 'grp-utility' }, value: 50 }, 'volunteer')).message).toMatch(/protected/i);
+    c.shutdown();
   });
 });
 
@@ -329,5 +463,24 @@ describe('First Real Connection workflow', () => {
     expect(Object.values(ids(cfg)).every((s) => s === 'done')).toBe(true);
     cfg.fixtures.find((f) => f.channel === 11)!.protected = true;
     expect(ids(cfg).choose).toBe('attention');
+  });
+
+  it('never reports the comparison as done from incomplete, old or outdated verification data', () => {
+    const cfg = importedConfig();
+    const now = Date.now();
+    const summary = { match: 20, different: 0, 'missing-in-eos': 0, 'extra-in-eos': 0, unknown: 0, unsupported: 3 };
+    const base = { at: now, showName: 'Sunday', consoleVersion: '3.3.10.0', simulatedConsole: false, summary, fingerprint: 'x', localFingerprint: localFingerprint(cfg) };
+    const compare = (v: AppConfig['verification']) => firstConnectionSteps({ ...cfg, verification: v }, now).find((s) => s.id === 'compare')!;
+    expect(compare(base).state).toBe('done');
+    // Something couldn't be checked (e.g. groups the console never reported).
+    expect(compare({ ...base, summary: { ...summary, unknown: 2 } }).state).toBe('attention');
+    // Verified on another day.
+    expect(compare({ ...base, at: now - 2 * 86_400_000 }).state).toBe('attention');
+    // Eos identities edited here after verifying (renaming for volunteers doesn't count).
+    const renamed = structuredClone(cfg); renamed.fixtures[0].label = 'Friendly name';
+    expect(firstConnectionSteps({ ...renamed, verification: base }, now).find((s) => s.id === 'compare')!.state).toBe('done');
+    const edited = structuredClone(cfg); edited.fixtures[0].dmx = { universe: 9, address: 1 };
+    expect(firstConnectionSteps({ ...edited, verification: base }, now).find((s) => s.id === 'compare')!.state).toBe('attention');
+    expect(outdatedWarnings({ ...edited, verification: base }, { showName: null, consoleChangedAt: null, connected: false }, null).join(' ')).toMatch(/changed in Sanctuary Light/);
   });
 });

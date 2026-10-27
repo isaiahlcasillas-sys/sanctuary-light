@@ -149,7 +149,15 @@ export interface CueListConfig {
   label: string;
   /** User-facing labels only; the Eos show file is never modified by editing these. */
   cues: CueEntry[];
+  /**
+   * An operator reviewed this whole cue list and authorised volunteers to step through it with
+   * GO/BACK. GO fires whatever cue comes next, so the approval covers the exact cue numbers
+   * present at review time; any change to them, or a re-import, withdraws it.
+   */
+  playbackApproval?: PlaybackApproval | null;
 }
+
+export interface PlaybackApproval extends Approval { cues: string[] }
 
 export interface SubmasterConfig {
   sub: number;

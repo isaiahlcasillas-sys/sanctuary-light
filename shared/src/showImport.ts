@@ -458,6 +458,7 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
   if (opts.include.cueLists && show.cueLists.length) {
     const byList = new Map(current.cueLists.map((c) => [c.list, c]));
     const out: CueListConfig[] = replace ? [] : current.cueLists.filter((c) => !show.cueLists.some((s) => s.list === c.list));
+    const droppedPlayback: number[] = [];
     for (const l of show.cueLists) {
       const fromEos: CueListConfig = {
         list: l.list, label: l.label || `Cue list ${l.list}`,
@@ -468,15 +469,19 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         })),
       };
       const local = byList.get(l.list);
+      // Importing a cue list is never an approval: whatever Eos holds now may differ from what
+      // was reviewed, so volunteer GO/BACK approval is withdrawn for every imported list.
+      if (local?.playbackApproval) droppedPlayback.push(l.list);
       if (!local) { out.push(fromEos); changes.cueLists.added++; continue; }
       const localKey = local.cues.map((c) => `${c.cue}:${c.label}`).join('|');
       const eosKey = fromEos.cues.map((c) => `${c.cue}:${c.label}`).join('|');
-      if (localKey === eosKey) { out.push({ ...local, cues: fromEos.cues }); changes.cueLists.unchanged++; continue; }
+      if (localKey === eosKey) { out.push({ ...local, cues: fromEos.cues, playbackApproval: null }); changes.cueLists.unchanged++; continue; }
       if (!replace) conflicts.push({ kind: 'cueList', key: `Cue list ${l.list}`, local: `${local.cues.length} cues`, imported: `${l.cues.length} cues`, resolution: useImported ? 'used-imported' : 'kept-local' });
-      out.push(useImported ? fromEos : local);
+      out.push(useImported ? fromEos : { ...local, playbackApproval: null });
       if (useImported) changes.cueLists.updated++; else changes.cueLists.unchanged++;
     }
     if (replace) changes.cueLists.removed = current.cueLists.filter((c) => !show.cueLists.some((s) => s.list === c.list)).length;
+    if (droppedPlayback.length) notices.push({ severity: 'warning', message: `Volunteer GO/BACK approval withdrawn for cue list ${droppedPlayback.join(', ')}: imported cues need an operator's review again.` });
     cfg.cueLists = out.sort((a, b) => a.list - b.list);
   }
 

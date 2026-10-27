@@ -255,6 +255,7 @@ label.field > span { font-weight: 600; letter-spacing: 0.02em; }
   background: linear-gradient(180deg, #34d399, #059669); color: #022c22; box-shadow: 0 8px 22px rgba(16, 185, 129, 0.35);
 }
 .go-btn:active { transform: translateY(1px); }
+.go-btn:disabled, .back-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .back-btn { height: 64px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--panel-2); cursor: pointer; font-size: 18px; font-weight: 800; letter-spacing: 0.06em; }
 .cue-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cue-table td, .cue-table th { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }

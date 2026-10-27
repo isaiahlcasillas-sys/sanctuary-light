@@ -4,6 +4,7 @@
  * Nothing here sends anything to the console.
  */
 import type { AppConfig } from './model';
+import { localFingerprint } from './verification';
 
 export type StepState = 'done' | 'todo' | 'attention';
 
@@ -46,8 +47,11 @@ export function firstConnectionSteps(cfg: AppConfig, now = Date.now()): Workflow
     const problems = v.summary.different + v.summary['missing-in-eos'] + v.summary['extra-in-eos'];
     if (v.simulatedConsole) steps.push({ id: 'compare', title: 'Compare with the console', state: 'attention', detail: 'The last verification was against the FAKE simulator. That is not evidence about the real console. Verify against the sanctuary\'s Eos.' });
     else if (imported && imported.importedAt > v.at) steps.push({ id: 'compare', title: 'Compare with the console', state: 'attention', detail: 'A show was imported after the last verification. Verify again.' });
+    else if (v.localFingerprint && v.localFingerprint !== localFingerprint(cfg)) steps.push({ id: 'compare', title: 'Compare with the console', state: 'attention', detail: 'Channels, cue lists or Eos groups were changed here after the last verification. Verify again.' });
+    else if (day(v.at) !== day(now)) steps.push({ id: 'compare', title: 'Compare with the console', state: 'attention', detail: `Last verified ${new Date(v.at).toLocaleDateString()}. The show in Eos may have changed since: verify again on the day of the live test.` });
     else if (problems) steps.push({ id: 'compare', title: 'Compare with the console', state: 'attention', detail: `${problems} difference(s) to review in Show Verification.` });
-    else steps.push({ id: 'compare', title: 'Compare with the console', state: 'done', detail: `Matched on ${new Date(v.at).toLocaleString()} (${v.summary.match} checks${v.summary.unknown ? `, ${v.summary.unknown} unknown` : ''}).` });
+    else if (v.summary.unknown) steps.push({ id: 'compare', title: 'Compare with the console', state: 'attention', detail: `${v.summary.unknown} item(s) couldn't be checked (for example groups the console didn't report). Read again, or review them in Show Verification.` });
+    else steps.push({ id: 'compare', title: 'Compare with the console', state: 'done', detail: `Matched today at ${new Date(v.at).toLocaleTimeString()} (${v.summary.match} checks; contents that can't be read over OSC are not counted).` });
   }
 
   const tf = fc.testFixture;

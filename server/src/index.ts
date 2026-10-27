@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { APPROVAL_STATEMENT, assessReadiness, normalizeLookApprovals, normalizeSubApprovals, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
+import { APPROVAL_STATEMENT, assessReadiness, PLAYBACK_APPROVAL_STATEMENT, cueNumbers, normalizeCueListApprovals, normalizeLookApprovals, normalizeSubApprovals, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
 import { Auth } from './auth';
 import { parseSleepPrevention, preventSleep } from './platform';
 import { Controller } from './controller';
@@ -81,6 +81,11 @@ app.put('/api/config/:section', operatorOnly, (req, res) => {
       const { looks, withdrawn } = normalizeLookApprovals(prev.looks, body as AppConfig['looks']);
       body = looks as AppConfig[typeof key];
       if (withdrawn.length) controller.log('warn', `Volunteer approval withdrawn because the Eos action changed: ${withdrawn.join(', ')}.`);
+    }
+    if (key === 'cueLists') {
+      const { cueLists, withdrawn } = normalizeCueListApprovals(prev.cueLists, body as AppConfig['cueLists']);
+      body = cueLists as AppConfig[typeof key];
+      if (withdrawn.length) controller.log('warn', `Volunteer GO/BACK approval withdrawn because the cues changed in list ${withdrawn.join(', ')}.`);
     }
     if (key === 'submasters') body = normalizeSubApprovals(prev.submasters, body as AppConfig['submasters']) as AppConfig[typeof key];
     const next = store.update(key, body);
@@ -186,6 +191,13 @@ app.post('/api/approve', operatorOnly, (req, res) => {
       if (!sub) { res.status(404).json({ error: 'Unknown submaster' }); return; }
       next = store.update('submasters', prev.submasters.map((s) => (s.sub === sub.sub ? { ...s, approval, volunteerVisible: approve ? s.volunteerVisible : false } : s)));
       controller.log(approve ? 'info' : 'warn', `${approve ? 'Approved' : 'Withdrew approval of'} Sub ${sub.sub} (${sub.label}) for Volunteer Mode.`);
+    } else if (kind === 'cueList') {
+      const list = prev.cueLists.find((l) => l.list === Number(id));
+      if (!list) { res.status(404).json({ error: 'Unknown cue list' }); return; }
+      if (approve && !list.cues.length) { res.status(400).json({ error: `Cue list ${list.list} has no cues to review.` }); return; }
+      const playbackApproval = approve ? { at: Date.now(), note: PLAYBACK_APPROVAL_STATEMENT, cues: cueNumbers(list) } : null;
+      next = store.update('cueLists', prev.cueLists.map((l) => (l.list === list.list ? { ...l, playbackApproval } : l)));
+      controller.log(approve ? 'info' : 'warn', `${approve ? 'Approved' : 'Withdrew approval of'} cue list ${list.list} (${list.cues.length} cues) for volunteer GO/BACK.`);
     } else { res.status(400).json({ error: 'Unknown item' }); return; }
     broadcast({ t: 'config', config: next });
     controller.onConfigChanged(prev, { quiet: true });

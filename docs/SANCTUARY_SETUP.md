@@ -54,8 +54,11 @@ Fixtures that aren't placed don't appear on the volunteer or worship stage views
 - **Cues:** on the left are your cue lists with their real numbers, labels and exported timing. Press **Make a look** on a cue, or select a look and choose **Change cue**.
 - **Approval:** every look that triggers something in Eos starts as **needs review**, and stays hidden from Volunteer Mode until an operator approves it. A cue, preset or submaster can do things Sanctuary Light can't see, including house lights that SceneStation also controls.
 - **Before approving:** run the look outside worship, watch the whole room (house lights too), then press **Review & approve** and confirm the statement.
-- **Changing a look's cue withdraws its approval.** Imported submasters need the same review. Protected ones also still need the timed unlock.
-- **Volunteers:** can only fire cues that belong to an approved look. The server enforces this, not just the screen.
+- **Changing a look's cue withdraws its approval.** Every submaster needs the same review, imported or not: moving it moves the real Eos sub, whatever it contains. Protected ones also still need the timed unlock, even through a look.
+- **GO / BACK are operator-only until the master cue list is approved.** GO runs whatever cue comes next, so an operator steps through **every cue in the list** outside worship, then presses **Review & approve list for volunteer GO/BACK** (above the cue table). The approval covers those exact cue numbers: adding, removing or renumbering a cue, or importing the show again, withdraws it. If Eos reports different cues in that list, volunteers are blocked again.
+- **Older Eos versions:** where GO/BACK are console keys (they act on whatever is loaded on the master playback), Sanctuary Light can't tell which cue list will run, so GO/BACK stay operator-only for volunteers even with an approval.
+- **Volunteers:** can only fire cues that belong to an approved look, use approved submasters, and GO/BACK on an approved list. The server enforces all of this, not just the screen. An approval is your review, not a verification: Sanctuary Light still can't see what a cue contains.
+- **After updating from an earlier version,** looks that trigger Eos and submasters volunteers used before are hidden until you approve them. Nothing is approved automatically.
 
 ## 5. Verify with Eos
 

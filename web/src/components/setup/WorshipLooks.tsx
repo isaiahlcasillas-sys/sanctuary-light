@@ -6,14 +6,14 @@
  */
 import { useState } from 'react';
 import { CheckCircle2, ChevronRight, CircleAlert, Eye, EyeOff, Link2, Plus, ShieldCheck } from 'lucide-react';
-import { APPROVAL_STATEMENT, needsApproval, volunteerCanUseLook, type Look, type SubmasterConfig } from '@sanctuary/shared';
+import { APPROVAL_STATEMENT, PLAYBACK_APPROVAL_STATEMENT, needsApproval, playbackApproved, volunteerCanUseLook, type CueListConfig, type Look, type SubmasterConfig } from '@sanctuary/shared';
 import { api } from '../../lib/api';
 import { useApp } from '../../state/store';
 import { actionLabel } from '../LooksGrid';
 import { Modal } from '../ui';
 import { StepHeader } from './SanctuarySetup';
 
-type Approving = { kind: 'look'; look: Look } | { kind: 'sub'; sub: SubmasterConfig } | null;
+type Approving = { kind: 'look'; look: Look } | { kind: 'sub'; sub: SubmasterConfig } | { kind: 'cueList'; list: CueListConfig } | null;
 
 export function WorshipLooks({ onNext }: { onNext(): void }) {
   const config = useApp((s) => s.config)!;
@@ -42,7 +42,7 @@ export function WorshipLooks({ onNext }: { onNext(): void }) {
   };
   const setVisible = (look: Look, visible: boolean) => saveLooks(config.looks.map((l) => (l.id === look.id ? { ...l, volunteerVisible: visible } : l)),
     visible ? `“${look.name}” is now in Volunteer Mode.` : `“${look.name}” is hidden from volunteers.`);
-  const withdraw = async (kind: 'look' | 'sub', id: string) => {
+  const withdraw = async (kind: 'look' | 'sub' | 'cueList', id: string) => {
     try { await api.post('/api/approve', { kind, id, approve: false }); toast('info', 'Approval withdrawn: hidden from volunteers.'); }
     catch (e) { toast('error', (e as Error).message); }
   };
@@ -52,7 +52,7 @@ export function WorshipLooks({ onNext }: { onNext(): void }) {
   };
 
   const eosLooks = config.looks.filter(needsApproval);
-  const importedSubs = config.submasters.filter((s) => s.fromEos);
+  const importedSubs = config.submasters;
 
   return (
     <div>
@@ -67,6 +67,13 @@ export function WorshipLooks({ onNext }: { onNext(): void }) {
                 <div className="tabs" role="tablist">
                   {lists.map((l) => <button key={l.list} role="tab" aria-selected={l.list === list} data-on={l.list === list} onClick={() => setList(l.list)}>List {l.list}{l.label ? ` · ${l.label}` : ''} ({l.cues.length})</button>)}
                 </div>
+                {current && list === config.settings.masterCueList && (
+                  <div className="card" data-tone={playbackApproved(current) ? undefined : 'warn'}>
+                    {playbackApproved(current)
+                      ? <><CheckCircle2 size={15} color="var(--ok)" style={{ verticalAlign: -3 }} /> <strong>Volunteers may use GO/BACK on this list</strong> (approved {new Date(current.playbackApproval!.at).toLocaleDateString()}). <button className="btn sm" onClick={() => void withdraw('cueList', String(current.list))}>Withdraw</button></>
+                      : <><ShieldCheck size={15} style={{ verticalAlign: -3 }} /> <strong>GO/BACK is operator-only for this list.</strong> GO runs whatever cue comes next, so volunteers can only use it after an operator reviews every cue in the list.{current.cues.length > 0 && <> <button className="btn sm" onClick={() => setApproving({ kind: 'cueList', list: current })}>Review & approve list for volunteer GO/BACK</button></>}</>}
+                  </div>
+                )}
                 {target && <div className="card" data-tone="warn">Choose the cue for <strong>{config.looks.find((l) => l.id === target)?.name}</strong>. <button className="btn sm" onClick={() => setTarget(null)}>Cancel</button></div>}
                 <div className="table-scroll" style={{ maxHeight: 520 }}>
                   <table className="data-table">
@@ -128,7 +135,7 @@ export function WorshipLooks({ onNext }: { onNext(): void }) {
 
       {importedSubs.length > 0 && (
         <section className="panel" style={{ marginTop: 14 }}>
-          <div className="panel-head"><h2>Submasters from Eos</h2></div>
+          <div className="panel-head"><h2>Submasters (each moves the real Eos sub)</h2></div>
           <div className="panel-body">
             <p className="hint">A submaster can control anything in Eos, and Sanctuary Light can't read what it contains. Each one needs the same review before volunteers can move it. Protected submasters also need the timed unlock.</p>
             <table className="data-table">
@@ -165,15 +172,16 @@ function ApproveDialog({ item, onClose }: { item: Approving; onClose(): void }) 
   const [checked, setChecked] = useState(false);
   const [show, setShow] = useState(true);
   if (!item) return null;
-  const name = item.kind === 'look' ? item.look.name : `Sub ${item.sub.sub} · ${item.sub.label}`;
-  const what = item.kind === 'look' ? actionLabel(item.look) : `submaster ${item.sub.sub}`;
+  const name = item.kind === 'look' ? item.look.name : item.kind === 'sub' ? `Sub ${item.sub.sub} · ${item.sub.label}` : `Cue list ${item.list.list}`;
+  const what = item.kind === 'look' ? actionLabel(item.look) : item.kind === 'sub' ? `submaster ${item.sub.sub}` : `GO/BACK on cue list ${item.list.list} (${item.list.cues.length} cues, in order)`;
+  const id = item.kind === 'look' ? item.look.id : item.kind === 'sub' ? String(item.sub.sub) : String(item.list.list);
   const approve = async () => {
     try {
-      await api.post('/api/approve', { kind: item.kind, id: item.kind === 'look' ? item.look.id : String(item.sub.sub), approve: true, acknowledged: true });
+      await api.post('/api/approve', { kind: item.kind, id, approve: true, acknowledged: true });
       const cfg = useApp.getState().config!;
       if (show && item.kind === 'look') await api.put('/api/config/looks', cfg.looks.map((l) => (l.id === item.look.id ? { ...l, volunteerVisible: true } : l)));
       if (show && item.kind === 'sub') await api.put('/api/config/submasters', cfg.submasters.map((s) => (s.sub === item.sub.sub ? { ...s, volunteerVisible: true } : s)));
-      useApp.getState().toast('info', `“${name}” approved${show ? ' and added to Volunteer Mode' : ''}.`);
+      useApp.getState().toast('info', `“${name}” approved${item.kind === 'cueList' ? ' for volunteer GO/BACK' : show ? ' and added to Volunteer Mode' : ''}.`);
       setChecked(false); onClose();
     } catch (e) { useApp.getState().toast('error', (e as Error).message); }
   };
@@ -187,9 +195,11 @@ function ApproveDialog({ item, onClose }: { item: Approving; onClose(): void }) 
       </ol>
       <label className="row" style={{ alignItems: 'flex-start', margin: '10px 0' }}>
         <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} style={{ marginTop: 3 }} />
-        <span>{APPROVAL_STATEMENT}</span>
+        <span>{item.kind === 'cueList' ? PLAYBACK_APPROVAL_STATEMENT : APPROVAL_STATEMENT}</span>
       </label>
-      <label className="row"><input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />Also show it in Volunteer Mode now</label>
+      {item.kind === 'cueList'
+        ? <p className="hint">The approval covers these exact cue numbers. Adding, removing or renumbering a cue, or importing the show again, withdraws it.</p>
+        : <label className="row"><input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />Also show it in Volunteer Mode now</label>}
       <div className="actions">
         <button className="btn" onClick={() => { setChecked(false); onClose(); }}>Cancel</button>
         <button className="btn primary" disabled={!checked} onClick={() => void approve()}>Approve</button>

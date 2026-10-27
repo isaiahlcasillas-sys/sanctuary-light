@@ -76,6 +76,8 @@ export interface VerificationRecord {
   summary: Record<CheckStatus, number>;
   /** Fingerprint of the console's patch + cue lists at that time. */
   fingerprint: string;
+  /** Fingerprint of what was compared on Sanctuary Light's side (see localFingerprint). */
+  localFingerprint?: string;
 }
 
 export const READ_STALL_MS = 8000;
@@ -95,10 +97,26 @@ export function isSimulatedConsole(showName: string | null) {
 
 /** Small, stable hash (FNV-1a) — enough to notice that the console's data changed. */
 export function fingerprint(snapshot: Pick<ConsoleSnapshot, 'patch' | 'cueLists'>): string {
-  const text = JSON.stringify([
+  return hash(JSON.stringify([
     [...snapshot.patch].sort((a, b) => a.channel - b.channel).map((p) => [p.channel, p.label, p.model, dmxText(p.dmx)]),
     [...snapshot.cueLists].sort((a, b) => a.list - b.list).map((l) => [l.list, l.label, l.cues.map((c) => [c.cue, c.label])]),
-  ]);
+  ]));
+}
+
+/**
+ * Fingerprint of the local data a verification compares (Eos identities: channels, addresses,
+ * types, Eos labels, cue numbers, Eos group membership). Friendly names don't count. If it
+ * changes, the last verification no longer describes this configuration.
+ */
+export function localFingerprint(cfg: AppConfig): string {
+  return hash(JSON.stringify([
+    [...cfg.fixtures].sort((a, b) => a.channel - b.channel).map((f) => [f.channel, f.eosLabel ?? null, f.eosType ?? null, dmxText(f.dmx)]),
+    [...cfg.cueLists].sort((a, b) => a.list - b.list).map((l) => [l.list, l.cues.map((c) => c.cue)]),
+    cfg.groups.filter((g) => g.eosGroup != null).map((g) => [g.eosGroup, [...g.channels].sort((a, b) => a - b)]).sort((a, b) => Number(a[0]) - Number(b[0])),
+  ]));
+}
+
+function hash(text: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return h.toString(16).padStart(8, '0');
@@ -220,6 +238,7 @@ export function outdatedWarnings(cfg: AppConfig, s: Pick<ConsoleSnapshot, 'showN
     return w;
   }
   if (cfg.eosShow && cfg.eosShow.importedAt > v.at) w.push('A show was imported after the last verification. Verify again.');
+  else if (v.localFingerprint && v.localFingerprint !== localFingerprint(cfg)) w.push('Channels, cue lists or Eos groups were changed in Sanctuary Light after the last verification. Verify again.');
   if (s.connected && s.showName != null && v.showName != null && s.showName !== v.showName) w.push(`Eos now has "${s.showName}" loaded, but Sanctuary Light was verified against "${v.showName}". The local configuration may be out of date.`);
   if (s.consoleChangedAt && s.consoleChangedAt > v.at) w.push('Eos reported patch, cue or group changes since the last verification. The local configuration may be out of date.');
   if (currentFingerprint && currentFingerprint !== v.fingerprint) w.push('The console\'s patch or cue lists are different from when Sanctuary Light was last verified.');
@@ -237,7 +256,7 @@ export function compareShow(cfg: AppConfig, s: ConsoleSnapshot): VerificationRep
       section: 'console', key: 'Eos version', status: !s.consoleVersion ? 'unknown' : versionMatches(cfg.settings.connection.eosVersion, s.consoleVersion) ? 'match' : 'different',
       local: cfg.settings.connection.eosVersion || 'not set', console: s.consoleVersion ?? 'not reported',
     });
-    items.push({ section: 'console', key: 'Loaded show', status: 'unknown', local: cfg.eosShow ? cfg.eosShow.fileName : 'nothing imported', console: s.showName ?? 'not reported', detail: 'Eos reports the show name, which an export file doesn\'t contain, so this can\'t be compared directly. The patch and cue comparison below is what counts.' });
+    items.push({ section: 'console', key: 'Loaded show', status: 'unsupported', local: cfg.eosShow ? cfg.eosShow.fileName : 'nothing imported', console: s.showName ?? 'not reported', detail: 'Eos reports the show name, which an export file doesn\'t contain, so this can\'t be compared directly. The patch and cue comparison below is what counts.' });
     if (read) {
       items.push(...patchItems(cfg, s, complete && read.patch.expected != null && read.patch.received >= read.patch.expected));
       items.push(...cueItems(cfg, s, complete));
