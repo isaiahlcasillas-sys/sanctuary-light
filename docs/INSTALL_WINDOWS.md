@@ -103,9 +103,10 @@ It changes nothing. Fix every **[FAIL]**, and decide on each **[WARN]** using th
 
 This restarts **Sanctuary Light only**. Don't restart the PC or sign out: on the shared PC that also closes Eos, which stops its DMX output. A full PC restart test waits until after the SceneStation audit ([SCENESTATION_WORKSHEET.md](SCENESTATION_WORKSHEET.md), part D2).
 
-1. Press **Ctrl+Shift+Esc** (Task Manager) → **Details** → find **node.exe** → **End task**. (Only Sanctuary Light's `node.exe`; Eos isn't a node.exe.)
-2. Wait about 15 seconds, then double-click **Sanctuary Light** on the desktop. It should open in **OFFLINE SIMULATION**. It never comes back in Live by itself.
-3. Eos and the lights didn't change at any point.
+1. Make sure Sanctuary Light is in **SIM** (the test refuses to run otherwise).
+2. In File Explorer open `C:\SanctuaryLight\deploy\windows` and **double-click `Restart Test.cmd`**. It finds **only Sanctuary Light's own server** (the `node.exe` running `C:\SanctuaryLight\server\src\index.ts`), shows it, stops it, and waits for it to come back by itself. It never stops Eos or any other program. **Don't end processes in Task Manager yourself**: other programs can also be called `node.exe`.
+3. It should end with **PASS: Sanctuary Light restarted by itself in Offline Simulation**. Reopen the window from the desktop icon if it closed.
+4. Eos and the lights didn't change at any point.
 
 ## Checkpoint
 
@@ -113,7 +114,7 @@ This restarts **Sanctuary Light only**. Don't restart the PC or sign out: on the
 - ☐ Installer finished: "Installed and running (mode: offline)"
 - ☐ PINs changed
 - ☐ `Check Sanctuary Light.cmd`: no [FAIL] except items you've consciously decided on
-- ☐ After ending `node.exe`, Sanctuary Light came back in SIM; Eos and the lights didn't change
+- ☐ `Restart Test.cmd` said PASS (back in SIM); Eos and the lights didn't change
 - ☐ The PC was **not** restarted
 
 Next: open **Setup** in the app and [import your Eos show](IMPORT_EOS_SHOW.md), so Sanctuary Light uses your real patch, groups and cues ([SANCTUARY_SETUP.md](SANCTUARY_SETUP.md)). The whole day is summarised in [INSTALLATION_READINESS.md](INSTALLATION_READINESS.md).
@@ -127,6 +128,7 @@ Next: open **Setup** in the app and [import your Eos show](IMPORT_EOS_SHOW.md), 
 | Open Sanctuary Light | Desktop icon **Sanctuary Light** (or Start menu). In any browser on this PC: `http://127.0.0.1:4700` |
 | Quit it completely | You normally don't. Closing the window leaves the server running, ready for next time. To stop the service: Task Scheduler → *Sanctuary Light* → End. **Stopping never changes the lights.** It also doesn't hand the lights back to SceneStation: Eos keeps transmitting DMX, and a wall station only takes over when DMX stops on its line. |
 | Health check | Double-click `deploy\windows\Check Sanctuary Light.cmd` (read-only) |
+| Restart Sanctuary Light only | In SIM, double-click `deploy\windows\Restart Test.cmd`. Never end `node.exe` in Task Manager. |
 | Update (never during a service) | `powershell -ExecutionPolicy Bypass -File deploy\windows\update.ps1`. It refuses unless the app is in SIM, backs up the settings, stops Sanctuary Light for a few minutes (Eos keeps running), and rolls back automatically if anything fails. |
 | Restore a backup | In the app: Settings → Backup. If the app won't start: `deploy\windows\restore-backup.ps1` (with no file name it lists the backups) |
 | Uninstall | Double-click `deploy\windows\Uninstall Sanctuary Light.cmd`. It lists what it will remove and asks first; it removes only the background task and icons, keeps your settings (add `-RemoveData` in Terminal to delete them too), and never touches Eos, the USB key, the show, the Gadget II, wireless DMX or SceneStation. Then delete `C:\SanctuaryLight` if you like. |

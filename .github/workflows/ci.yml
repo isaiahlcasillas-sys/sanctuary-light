@@ -92,6 +92,15 @@ jobs:
           if ($after[0].ProcessId -eq $before[0].ProcessId) { throw 'server was not restarted' }
           if ($h.mode -ne 'offline') { throw "after restart expected offline, got $($h.mode)" }
           if (-not (Select-String -Path "$($script:LogDir)\supervisor.log" -Pattern 'restarting in' -Quiet)) { Show-Logs; throw 'supervisor did not log the restart' }
+          # 4b. The documented restart test stops only Sanctuary Light's server, never another node.exe.
+          $decoyDir = Join-Path $env:RUNNER_TEMP 'decoy'; New-Item -ItemType Directory -Force $decoyDir | Out-Null
+          $decoy = Start-Process node.exe -PassThru -WindowStyle Hidden -WorkingDirectory $decoyDir -ArgumentList @('-e', '"setInterval(()=>{},1000)"')
+          $beforeTest = @(Get-SanctuaryServerProcesses)[0].ProcessId
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\restart-test.ps1 -Port 4799
+          if ($LASTEXITCODE -ne 0) { Show-Logs; throw 'restart-test.ps1 failed' }
+          if (@(Get-SanctuaryServerProcesses)[0].ProcessId -eq $beforeTest) { throw 'restart-test.ps1 did not restart the server' }
+          if (-not (Get-Process -Id $decoy.Id -ErrorAction SilentlyContinue)) { throw 'restart-test.ps1 stopped another node.exe' }
+          Stop-Process -Id $decoy.Id
           # 5. The read-only check runs cleanly against the running server.
           powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\check-windows.ps1
           if ($LASTEXITCODE -ne 0) { throw 'check-windows.ps1 failed' }

@@ -40,7 +40,7 @@ Full detail: [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md). About 45 minutes, with in
    - Wait for **"Installed and running (mode: offline)"**. An `ERROR:` line says what to fix; re-running is safe.
 5. **Open** Sanctuary Light from the desktop icon. The **Welcome** screen confirms you're in Offline Simulation. Sign in with the operator PIN **1234**, then change **both** PINs (*Settings → Safety & Security*).
 6. **Health check:** double-click **`Check Sanctuary Light.cmd`** (changes nothing). Fix any **[FAIL]**.
-7. **Restart test (Sanctuary Light only):** Task Manager → Details → `node.exe` → End task. Then reopen it from the desktop icon. It comes back in **SIM**. Don't restart the PC.
+7. **Restart test (Sanctuary Light only):** with Sanctuary Light in SIM, double-click **`Restart Test.cmd`**. It stops only Sanctuary Light's own server (identified by its folder) and checks it comes back in **SIM** by itself. Don't end processes in Task Manager, and don't restart the PC.
 
 **If something goes wrong:**
 
@@ -159,7 +159,7 @@ Print this page. Tick each box as you go. **Stop at the first surprise**, switch
 - ☐ Desktop icon opens Sanctuary Light; Welcome screen says **Offline Simulation**
 - ☐ Both PINs changed
 - ☐ `Check Sanctuary Light.cmd`: no unexpected [FAIL]
-- ☐ Ended `node.exe` in Task Manager → Sanctuary Light came back in **SIM**; lights unchanged
+- ☐ `Restart Test.cmd` → **PASS** (came back in **SIM**); lights unchanged
 
 **Import (still SIM)**
 - ☐ Exported today's show from Eos as CSV (File → Export, not File → Open)
