@@ -116,7 +116,7 @@ if (Test-Path $sup) {
 }
 if (Test-Path $log) {
   Info "Log: $log ($([int]((Get-Item $log).Length / 1KB)) KB)"
-  if ((Get-Item $log).Length -gt 50MB) { Warn 'The log is over 50 MB. It starts fresh when Sanctuary Light restarts (Task Scheduler > Sanctuary Light > End, then open it from the desktop icon). Don't restart the PC or sign out for this: that also closes Eos.' }
+  if ((Get-Item $log).Length -gt 50MB) { Warn 'The log is over 50 MB. It starts fresh when Sanctuary Light restarts (Task Scheduler > Sanctuary Light > End, then open it from the desktop icon). Do not restart the PC or sign out for this: that also closes Eos.' }
   if (Get-Content $log -Tail 50 | Select-String -Pattern 'error|EADDRINUSE' -Quiet) { Warn "Recent errors in the log - open $log" }
 }
 
