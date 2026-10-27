@@ -4,7 +4,7 @@
  * its button; nothing is sent to the console automatically.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Eye, Lightbulb, Network, ShieldCheck, Undo2, Zap } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Eye, Lightbulb, Network, ShieldCheck, Undo2, Zap, FileUp } from 'lucide-react';
 import {
   checkConnectionCompat, describeConsoleIp, eosCapabilities, isLoopback, parseEosVersion, recommendConnection, sameSubnet, versionAtLeast,
   type LocalInterface, type Settings,
@@ -87,6 +87,11 @@ function IntroStep() {
         <li>Disconnecting or closing the wizard never sends anything to Eos.</li>
         <li>Eos stays in charge: anyone at the console can override what this app does.</li>
       </ul>
+      <div className="card">
+        <strong>Already have a show in Eos?</strong>
+        <p className="hint">Import it first, so Sanctuary Light uses your real patch, groups and cues. It's an offline file import: nothing is sent to Eos.</p>
+        <button className="btn primary" onClick={() => useApp.getState().setImportOpen(true)}><FileUp size={15} />Import Eos Show</button>
+      </div>
     </div>
   );
 }

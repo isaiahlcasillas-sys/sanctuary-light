@@ -3,6 +3,7 @@
  * Nothing here ever talks to the console: saving a layout cannot change the Eos show file.
  * Every save keeps a timestamped backup (last 50) under data/backups.
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AppConfig } from '@sanctuary/shared';
@@ -105,6 +106,59 @@ export class ConfigStore {
     this.config = next;
     this.writeFile(next);
     return next;
+  }
+
+  /**
+   * Save the result of an Eos show import. Validates every section first, then keeps a
+   * named copy of the previous configuration (pre-import-…json, not pruned with the per-save
+   * backups). Returns the backup's file name.
+   */
+  applyImport(next: AppConfig): string {
+    for (const key of Object.keys(next) as SectionKey[]) {
+      const err = validateSection(key, next[key], next);
+      if (err) throw new Error(`${key}: ${err}`);
+    }
+    const name = `pre-import-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    fs.writeFileSync(path.join(this.backupDir, name), JSON.stringify(this.config, null, 2));
+    this.config = next;
+    this.writeFile(next);
+    // Remember what the import produced, so an undo can tell whether anything changed since.
+    fs.writeFileSync(this.importStateFile(), JSON.stringify({ backup: name, hash: this.hash(next) }));
+    return name;
+  }
+
+  /** The parts of the configuration an Eos import can change (and an undo restores). */
+  static readonly IMPORT_SECTIONS = ['profiles', 'fixtures', 'groups', 'looks', 'cueLists', 'submasters', 'eosShow'] as const;
+
+  private importStateFile() { return path.join(this.dataDir, 'last-import.json'); }
+  private hash(cfg: AppConfig) { return crypto.createHash('sha256').update(JSON.stringify(cfg)).digest('hex'); }
+
+  /**
+   * Undo the most recent Eos import by restoring, from its pre-import backup, only the sections an
+   * import changes. Settings (connection, safety, PINs…) and the stage layout are left as they are,
+   * so an undo never reconnects to the console.
+   * 'changed' = something was edited after the import; only proceeds with `force`.
+   */
+  undoLastImport(force = false): { status: 'none' } | { status: 'changed' } | { status: 'ok'; restored: string } {
+    const stateFile = this.importStateFile();
+    if (!fs.existsSync(stateFile)) return { status: 'none' };
+    const state = JSON.parse(fs.readFileSync(stateFile, 'utf8')) as { backup: string; hash: string };
+    const file = path.join(this.backupDir, state.backup);
+    if (!fs.existsSync(file)) { fs.rmSync(stateFile); return { status: 'none' }; }
+    if (!force && this.hash(this.config) !== state.hash) return { status: 'changed' };
+    const { config: before } = migrateConfig(JSON.parse(fs.readFileSync(file, 'utf8')) as AppConfig, defaultConfig());
+    const next = { ...this.config };
+    for (const key of ConfigStore.IMPORT_SECTIONS) (next as Record<string, unknown>)[key] = before[key];
+    for (const key of ConfigStore.IMPORT_SECTIONS) {
+      const err = validateSection(key, next[key], next);
+      if (err) throw new Error(`${key}: ${err}`);
+    }
+    this.backup();
+    this.config = next;
+    this.writeFile(next);
+    fs.renameSync(file, path.join(this.backupDir, `used-${state.backup}`));
+    fs.rmSync(stateFile);
+    return { status: 'ok', restored: state.backup };
   }
 
   resetToDefaults(): AppConfig {

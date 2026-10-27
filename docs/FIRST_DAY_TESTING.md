@@ -24,9 +24,9 @@ The top banner must read **OFFLINE SIMULATION** the whole time.
 | # | Do this | You should see |
 |---|---|---|
 | S1 | Open Sanctuary Light, sign in with the operator PIN | Blue OFFLINE SIMULATION banner; connection pill says "Offline" |
-| S2 | **Settings → Patch → Import** your patch file (from the on-site checklist). Read the preview and warnings, then **Merge** or **Replace** | Your real channel numbers and labels |
-| S3 | In the Patch table, tick **Protect** for every relay and utility channel. **Delete the two "DEMO Mover" rows.** | Protected channels show red outlines on the stage |
-| S4 | **Settings → Groups**: set the channel lists to match Eos's house, front and stage groups. Enter the Eos group numbers. | Groups show **unverified** for now. That's expected; nothing is connected. |
+| S2 | **Import Eos Show** (top bar) with the CSV you exported from Eos ([guide](IMPORT_EOS_SHOW.md)). Read the preview and its **Issues** tab, then **Import** | Your real channels, fixture types, groups, cue lists and labels. Nothing was sent to Eos. |
+| S3 | In **Settings → Patch**, check that every relay and utility channel is **protected** (relays named in Eos are protected automatically). **Delete the two "DEMO Mover" rows** if you merged. | Protected channels show red outlines on the stage |
+| S4 | **Settings → Groups**: check the imported groups. Each has its Eos group number. | Groups show **unverified** for now. That's expected; nothing is connected. |
 | S5 | **Worship** mode: click group chips, move faders, try colors | The stage picture changes. The toast says **"preview only (offline). Nothing was sent to Eos."** |
 | S6 | Click a relay channel and press **Full** | **Blocked**: "Protected channel(s)…" |
 | S7 | **Volunteer** mode: press looks and GO/BACK | Preview only; each look is labelled **Local look · preview only** unless mapped to an Eos system cue |

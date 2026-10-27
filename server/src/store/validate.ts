@@ -109,6 +109,12 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
       }
       return null;
     }
+    case 'eosShow': {
+      const e = value as AppConfig['eosShow'];
+      if (e === null) return null;
+      if (!e || typeof e.fileName !== 'string' || !Array.isArray(e.palettes)) return 'Invalid Eos show reference';
+      return null;
+    }
     default:
       return `Unknown section ${String(key)}`;
   }

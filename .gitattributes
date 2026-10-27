@@ -4,3 +4,5 @@
 *.ps1  text eol=crlf
 *.cmd  text eol=crlf
 *.ico  binary
+# Import test files must stay byte-for-byte (encodings, line endings).
+server/test/fixtures/** -text

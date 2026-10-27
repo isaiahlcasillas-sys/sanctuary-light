@@ -229,5 +229,6 @@ export function defaultConfig(): AppConfig {
     ],
     stage: { width: 1200, height: 800, elements: DEFAULT_STAGE_ELEMENTS },
     architecture: defaultArchitecture(),
+    eosShow: null,
   });
 }

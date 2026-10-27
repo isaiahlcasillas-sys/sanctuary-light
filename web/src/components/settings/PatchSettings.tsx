@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Download, Plus, Trash2, Upload } from 'lucide-react';
+import { Download, FileUp, Plus, Trash2, Upload } from 'lucide-react';
 import type { AreaId, Fixture } from '@sanctuary/shared';
 import { api, downloadText } from '../../lib/api';
 import { useApp } from '../../state/store';
@@ -79,6 +79,7 @@ export function PatchSettings() {
       <div className="row wrap">
         <input className="input grow" placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter fixtures" />
         <input ref={fileRef} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); e.target.value = ''; }} />
+        <button className="btn sm primary" onClick={() => useApp.getState().setImportOpen(true)}><FileUp size={14} />Import Eos Show</button>
         <button className="btn sm" onClick={() => fileRef.current?.click()}><Upload size={14} />Import CSV/JSON</button>
         <button className="btn sm" onClick={() => exportAs('csv')}><Download size={14} />CSV</button>
         <button className="btn sm" onClick={() => exportAs('json')}><Download size={14} />JSON</button>

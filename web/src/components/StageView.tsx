@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
-import { Maximize, Move, RotateCw, Save, Tag, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
+import { FileUp, LayoutGrid, Maximize, Move, RotateCw, Save, Tag, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Fixture, FixtureProfile, FixtureState, StageElement } from '@sanctuary/shared';
 import { useApp } from '../state/store';
 import { api } from '../lib/api';
@@ -142,9 +142,12 @@ export function StageView({ compact = false }: { compact?: boolean }) {
   const saveLayout = async () => {
     const st = useApp.getState();
     const cfg = st.config!;
-    const pos = new Map((st.draftFixtures ?? []).map((f) => [f.id, f.stage]));
+    const pos = new Map((st.draftFixtures ?? []).map((f) => [f.id, f]));
     try {
-      await api.put('/api/config/fixtures', cfg.fixtures.map((f) => (pos.has(f.id) ? { ...f, stage: pos.get(f.id)! } : f)));
+      await api.put('/api/config/fixtures', cfg.fixtures.map((f) => {
+        const d = pos.get(f.id);
+        return d ? { ...f, stage: d.stage, unplaced: d.unplaced || undefined } : f;
+      }));
       await api.put('/api/config/stage', { ...cfg.stage, elements: st.draftElements ?? cfg.stage.elements });
       useApp.setState({ draftFixtures: null, draftElements: null, editLayout: false });
       st.toast('info', 'Layout saved on this computer. The Eos show file was not changed.');
@@ -153,6 +156,7 @@ export function StageView({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  const unplacedCount = fixtures.filter((f) => f.unplaced).length;
   const singleSel = editLayout && selection.length === 1 ? fixtures.find((f) => f.channel === selection[0]) : undefined;
   const groupChips = (config?.groups ?? []).filter((g) => !compact || g.volunteerVisible);
   const anySource = levels ? (Object.values(levels.sources).includes('commanded') ? 'commanded' : 'simulated') : 'simulated';
@@ -185,6 +189,23 @@ export function StageView({ compact = false }: { compact?: boolean }) {
           <Tip label="Drag fixtures and stage pieces to match the sanctuary"><button className="btn sm" onClick={() => setEditLayout(true)}><Move size={14} />Edit layout</button></Tip>
         ))}
       </div>
+      {!compact && role === 'operator' && config && !config.eosShow && !editLayout && (
+        <div className="arrange-bar">
+          <FileUp size={15} /><span>These are <strong>sample fixtures</strong>. Bring in your real patch, groups and cues from Eos.</span>
+          <span className="spacer" />
+          <button className="btn sm primary" onClick={() => useApp.getState().setImportOpen(true)}>Import Eos Show</button>
+        </div>
+      )}
+      {!compact && role === 'operator' && unplacedCount > 0 && (
+        <div className="arrange-bar">
+          <LayoutGrid size={15} />
+          {editLayout
+            ? <span>Drag each <strong>highlighted</strong> fixture to where it hangs. {unplacedCount} left. Press <strong>Save layout</strong> when done (you can stop and continue later).</span>
+            : <span><strong>{unplacedCount}</strong> imported fixture(s) are lined up along the bottom of the stage and need arranging.</span>}
+          <span className="spacer" />
+          {!editLayout && <button className="btn sm primary" onClick={() => setEditLayout(true)}>Arrange now</button>}
+        </div>
+      )}
       <div className="stage-canvas" data-edit={editLayout}>
         <svg ref={svgRef} viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} role="application" aria-label="Overhead stage plan. Click fixtures to select; shift-drag to select an area; drag to pan; scroll to zoom."
           onPointerDown={onBgDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
@@ -210,6 +231,9 @@ export function StageView({ compact = false }: { compact?: boolean }) {
             {fixtures.map((f) => <Beam key={f.id} f={f} profile={profiles.get(f.profileId)} state={levels?.levels[f.channel]} />)}
           </g>
 
+          {editLayout && fixtures.filter((f) => f.unplaced).map((f) => (
+            <circle key={`u-${f.id}`} cx={f.stage.x} cy={f.stage.y} r={24} fill="none" stroke="#f5b942" strokeWidth={2} strokeDasharray="5 4" pointerEvents="none" />
+          ))}
           {fixtures.map((f) => (
             <FixtureGlyph key={f.id} f={f} profile={profiles.get(f.profileId)} state={levels?.levels[f.channel]}
               selected={selected.has(f.channel)} showLabel={showLabels} onPointerDown={(e) => onFixtureDown(e, f)} editing={editLayout} />

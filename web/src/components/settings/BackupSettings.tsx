@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Download, RotateCcw, Upload } from 'lucide-react';
+import { UndoImportButton } from '../import/UndoImportButton';
 import { api, downloadText } from '../../lib/api';
 import { useApp } from '../../state/store';
 import { Confirm } from '../ui';
@@ -7,6 +8,7 @@ import { Confirm } from '../ui';
 export function BackupSettings() {
   const [restore, setRestore] = useState<unknown>(null);
   const [reset, setReset] = useState(false);
+  const eosShow = useApp((s) => s.config?.eosShow);
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useApp.getState().toast;
 
@@ -27,6 +29,7 @@ export function BackupSettings() {
           try { setRestore(JSON.parse(await f.text())); } catch { toast('error', 'That file is not valid JSON'); }
         }} />
         <button className="btn" onClick={() => fileRef.current?.click()}><Upload size={16} />Restore from file…</button>
+        {eosShow && <UndoImportButton fileName={eosShow.fileName} />}
         <button className="btn danger" onClick={() => setReset(true)}><RotateCcw size={16} />Reset to sample configuration</button>
       </div>
       <Confirm open={restore !== null} onOpenChange={(o) => !o && setRestore(null)} danger title="Restore this backup?" confirmLabel="Restore"
