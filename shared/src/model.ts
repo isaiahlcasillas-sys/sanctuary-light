@@ -125,6 +125,17 @@ export interface Look {
   preview: LookPreviewEntry[];
   volunteerVisible: boolean;
   /**
+   * Per-fixture states designed in the Look Designer (local only; never sent to Eos). Only
+   * parameters the fixture's profile supports are kept. Older looks use `preview` instead.
+   */
+  fixtures?: LookFixtureState[];
+  /** Simulated fade time when this look is played in Offline Simulation (seconds). */
+  fadeSeconds?: number;
+  /** Library collection, e.g. "Worship", "Sermon", "Seasonal", "Special Events". */
+  collection?: string;
+  /** Last edited in the Look Designer. */
+  updatedAt?: number;
+  /**
    * An operator reviewed what this look does in Eos and authorised it for Volunteer Mode.
    * Required for any look with an Eos action: a cue, preset, sub or snapshot can do things
    * Sanctuary Light can't see. Cleared automatically when the action changes.
@@ -133,6 +144,9 @@ export interface Look {
 }
 
 export interface Approval { at: number; note: string }
+
+/** One fixture's designed state in a local look. */
+export interface LookFixtureState extends FixtureState { channel: number }
 
 export interface CueEntry {
   cue: string;

@@ -11,7 +11,7 @@
 > * **Never disconnect or rewire live DMX or power yourself** as part of this audit. Write down what you'd like tested and schedule it.
 > * Sanctuary Light does **not** control SceneStation. Nothing in this worksheet involves the app sending anything.
 
-Record the results in **Sanctuary Light → Settings → Architectural audit**. They appear on the **Architectural** page and in its "What happens if…" table.
+Record the results in **Sanctuary Light → Settings → Architectural audit**. They appear on the **Building** page (architectural lighting) and in its "What happens if…" table.
 
 ## A. House-light behavior today (observation)
 

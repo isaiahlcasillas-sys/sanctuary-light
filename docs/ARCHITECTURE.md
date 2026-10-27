@@ -34,7 +34,7 @@ Invariants that every phase must keep:
 | Mode | Who | Shows | Can change real lights? |
 |---|---|---|---|
 | **Volunteer** | Volunteer PIN | Large look buttons, GO/BACK on the master cue list, volunteer-approved house/stage groups and submasters, help text | Only through the Ion, and only with Live armed by an operator. Relay and macro looks are blocked. |
-| **Worship** | Operator PIN | Stage plan, fixture control (intensity, color, CCT, position, beam), groups, looks (local and Ion), cues, submasters, setup and settings | Through the Ion when Live. Every action reports sent / preview / blocked. |
+| **Design** (was *Worship*) | Operator PIN | Large stage plan; fixture and group browser; inspector for the selected lights (intensity, color, CCT, position, beam, only what each fixture supports); look library with collections and thumbnails; the **Look Designer**; cues; submasters | Inspector controls go through Eos when Live, as before. The Look Designer never sends anything. Every action reports sent / preview / blocked. |
 | **Architectural Status** | Anyone (editing needs the operator PIN) | How SceneStation relates to the Ion; audit results; "what happens if…" analysis with its basis (by design / documented / needs audit / hazard); control availability | **No.** This page has no control path. |
 
 These are separate from the **engine mode** in the top bar (SIM / MONITOR / LIVE). For example, Volunteer mode in SIM is a safe training environment.
@@ -46,7 +46,7 @@ These are separate from the **engine mode** in the top bar (SIM / MONITOR / LIVE
 | **Local look** (`action: none`) | Sanctuary Light `config.json` | Changes the on-screen preview only, even in Live | "Local look · preview only" |
 | **Ion look** (cue / preset / macro / sub / snapshot) | Mapping in Sanctuary Light; the lighting itself is in the **Ion show file** | Triggers that show-file object when Live | "Ion · Cue 1/5" etc.; its preview is an approximation |
 
-"Save stage as look" creates a **local** look. Volunteers will create looks without Eos syntax (Roadmap Phase 4) via a guarded "publish to Ion" step that records a cue on the console with an explicit confirmation. That step will show exactly which command-line text is sent (e.g. `Cue 1 / 105 Record`), and needs commissioning first. It is **not built**, and nothing today writes to the show file.
+The **Look Designer** creates and edits **local** looks fixture by fixture (see [LOOK_DESIGNER.md](LOOK_DESIGNER.md)); it works only in Offline Simulation and never sends a command. Volunteers will create looks without Eos syntax (Roadmap Phase 4) via a guarded "publish to Ion" step that records a cue on the console with an explicit confirmation. That step will show exactly which command-line text is sent (e.g. `Cue 1 / 105 Record`), and needs commissioning first. It is **not built**, and nothing today writes to the show file.
 
 ## Future components (not built)
 

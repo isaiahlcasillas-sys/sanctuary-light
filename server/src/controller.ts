@@ -8,7 +8,7 @@
  *   5. reports back exactly which of those happened.
  */
 import {
-  MODE_INFO, clamp, compareShow, eosCapabilities, fingerprint, localFingerprint, outdatedWarnings, parseEosVersion, readState, volunteerCanUseLook, volunteerCanUseSub, volunteerPlaybackBlock,
+  MAX_FADE_SECONDS, MODE_INFO, clamp, compareShow, interpolateState, lookLevels, eosCapabilities, fingerprint, localFingerprint, outdatedWarnings, parseEosVersion, readState, volunteerCanUseLook, volunteerCanUseSub, volunteerPlaybackBlock,
   type ConsoleSnapshot, type FirstConnectionRecord, type VerificationReport,
   type CommissioningRecord, type GoBackStatus, type GroupVerification,
   type AppConfig, type Capability, type Command, type CommandResult, type CueFeedback, type FeedbackCapability,
@@ -88,6 +88,10 @@ export class Controller {
   private limiter: CommandRateLimiter;
   private engineStartedAt = 0;
   private simFade: NodeJS.Timeout | null = null;
+  /** A simulated look crossfade in progress (Offline Simulation only). */
+  private lookFade: NodeJS.Timeout | null = null;
+  /** The look most recently played (shown as "now" in Volunteer Mode). */
+  activeLook: { id: string; name: string; at: number } | null = null;
   private statusTimer: NodeJS.Timeout;
   private levelsDirty: NodeJS.Timeout | null = null;
   private seenCueFeedback = false;
@@ -176,6 +180,7 @@ export class Controller {
       protectedUnlockedUntil: this.protectedUnlockedUntil,
       groupVerification: this.groupVerification(now),
       goBack: this.goBackStatus(),
+      activeLook: this.activeLook,
       volunteerPlayback: this.volunteerPlaybackBlock(),
       versionMismatch: this.versionMismatch(),
       showWarnings: this.mode === 'offline' ? [] : outdatedWarnings(this.cfg, { showName: this.showName, consoleChangedAt: this.consoleChangedAt, connected: conn.state === 'connected' }, null),
@@ -367,6 +372,7 @@ export class Controller {
       this.startEngine(mode === 'eos-live');
     }
     this.mode = mode;
+    this.stopLookFade();
     if (mode === 'eos-live') {
       // Levels on screen came from the simulation, not the console.
       for (const ch of Object.keys(this.sources)) this.sources[Number(ch)] = 'simulated';
@@ -380,6 +386,7 @@ export class Controller {
   shutdown() {
     // Deliberately no blackout / release: Eos simply keeps running its current state.
     clearInterval(this.statusTimer);
+    this.stopLookFade();
     this.stopEngine();
   }
 
@@ -582,6 +589,8 @@ export class Controller {
   }
 
   private setLevels(channels: number[], source: ValueSource, fn: (prev: FixtureState, f: Fixture) => FixtureState) {
+    // Any direct change takes over from a simulated look fade.
+    this.stopLookFade();
     for (const f of this.cfg.fixtures) {
       if (!channels.includes(f.channel)) continue;
       this.levels[f.channel] = fn(this.levels[f.channel] ?? { intensity: 0 }, f);
@@ -653,15 +662,16 @@ export class Controller {
         if (!look) return { ok: false, delivery: 'error', message: 'Unknown look' };
         if (role === 'volunteer' && !look.volunteerVisible) return { ok: false, delivery: 'blocked', message: 'This look is operator-only.' };
         if (role === 'volunteer' && !volunteerCanUseLook(look)) return { ok: false, delivery: 'blocked', message: `“${look.name}” hasn't been approved for volunteers yet. Ask the lighting lead.` };
-        const applyPreview = () => this.applyLookPreview(look.id);
+        const applyPreview = () => { this.applyLookPreview(look.id); this.activeLook = { id: look.id, name: look.name, at: Date.now() }; this.pushStatus(); };
         const a = look.action;
         if (a.type === 'none') {
           applyPreview();
+          const fade = this.mode === 'offline' && (look.fadeSeconds ?? 0) > 0 ? ` (simulated ${look.fadeSeconds} s fade)` : '';
           return {
             ok: true, delivery: 'simulated',
             message: this.mode === 'eos-live'
               ? `“${look.name}” is not mapped to an Eos cue/preset/macro yet — only the on-screen preview changed. Map it in Settings → Looks.`
-              : `“${look.name}” — preview only (not mapped to an Eos action).`,
+              : `“${look.name}” — preview only (not mapped to an Eos action)${fade}.`,
           };
         }
         if (a.type === 'macro' && role !== 'operator') {
@@ -932,22 +942,38 @@ export class Controller {
 
   // ───────────────────────────── simulation helpers ─────────────────────────────
 
+  private stopLookFade() {
+    if (this.lookFade) { clearInterval(this.lookFade); this.lookFade = null; }
+  }
+
+  /**
+   * Show a look on the stage preview. Only the preview changes: nothing is sent to Eos here.
+   * In Offline Simulation a look with a fade time crossfades; in Monitor and Live the preview
+   * changes at once, as before.
+   */
   private applyLookPreview(lookId: string) {
     const look = this.cfg.looks.find((l) => l.id === lookId);
     if (!look) return;
-    for (const entry of look.preview) {
-      const g = this.cfg.groups.find((x) => x.id === entry.groupId);
-      if (!g) continue;
-      this.setLevels(g.channels, 'simulated', (p, f) => {
-        const caps = this.profileOf(f)?.capabilities ?? [];
-        return {
-          ...p,
-          intensity: entry.intensity,
-          ...(entry.color && caps.includes('rgb') ? { color: entry.color } : {}),
-          ...(entry.cct && caps.includes('cct') ? { cct: entry.cct } : {}),
-        };
-      });
-    }
+    const target = lookLevels(this.cfg, look);
+    this.stopLookFade();
+    const fade = this.mode === 'offline' ? Math.max(0, Math.min(MAX_FADE_SECONDS, look.fadeSeconds ?? 0)) : 0;
+    const from = new Map([...target.keys()].map((ch) => [ch, this.levels[ch] ?? { intensity: 0 }]));
+    const apply = (t: number) => {
+      for (const [ch, s] of target) {
+        const prev = from.get(ch)!;
+        this.levels[ch] = t >= 1 ? { ...prev, ...s } : interpolateState(prev, { ...prev, ...s }, t);
+        this.sources[ch] = 'simulated';
+      }
+      this.markLevelsDirty();
+    };
+    if (!fade) { apply(1); return; }
+    const start = Date.now();
+    apply(0);
+    this.lookFade = setInterval(() => {
+      const t = (Date.now() - start) / (fade * 1000);
+      apply(Math.min(1, t));
+      if (t >= 1) this.stopLookFade();
+    }, 50);
   }
 
   private simulateCue(list: number, cue: string) {

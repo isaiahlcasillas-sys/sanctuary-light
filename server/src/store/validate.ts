@@ -1,4 +1,4 @@
-import { checkConnectionCompat, isIPv4, isValidEosVersion, needsApproval, type AppConfig } from '@sanctuary/shared';
+import { MAX_FADE_SECONDS, checkConnectionCompat, isIPv4, isValidEosVersion, needsApproval, type AppConfig } from '@sanctuary/shared';
 
 export type SectionKey = keyof AppConfig;
 
@@ -64,6 +64,15 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
         if (a.type === 'preset' && (!isInt(a.preset, 1) || !isInt(a.eosGroup, 1))) return `${l.name}: preset and Eos group required`;
         if (a.type === 'sub' && (!isInt(a.sub, 1) || !(a.level >= 0 && a.level <= 100))) return `${l.name}: submaster and level 0–100 required`;
         if (a.type === 'snapshot' && !isInt(a.snapshot, 1)) return `${l.name}: snapshot number required`;
+        if (l.fadeSeconds != null && !(typeof l.fadeSeconds === 'number' && l.fadeSeconds >= 0 && l.fadeSeconds <= MAX_FADE_SECONDS)) return `${l.name}: fade time must be 0–${MAX_FADE_SECONDS} seconds`;
+        if (l.collection != null && (typeof l.collection !== 'string' || l.collection.length > 40)) return `${l.name}: collection name must be at most 40 characters`;
+        if (l.fixtures != null) {
+          if (!Array.isArray(l.fixtures)) return `${l.name}: fixture states must be a list`;
+          for (const s of l.fixtures) {
+            if (!isInt(s.channel, 1) || !(s.intensity >= 0 && s.intensity <= 100)) return `${l.name}: each fixture needs a channel and an intensity 0–100`;
+            if (s.color && ![s.color.r, s.color.g, s.color.b].every((v) => v >= 0 && v <= 100)) return `${l.name}: color values must be 0–100`;
+          }
+        }
         if (l.volunteerVisible && needsApproval(l) && !l.approval) return `“${l.name}” triggers something in Eos, so an operator must review and approve it before volunteers can see it.`;
       }
       return null;

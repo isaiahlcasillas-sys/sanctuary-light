@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
-import { FileUp, LayoutGrid, Maximize, Move, RotateCw, Save, Tag, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
-import { unplacedAreaTop, type AreaId, type Fixture, type FixtureProfile, type FixtureState, type StageElement } from '@sanctuary/shared';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from 'react';
+import { FileUp, Info, LayoutGrid, Maximize, Move, Palette, RotateCw, Save, Tag, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
+import { controlsUnknown, interpolateState, unplacedAreaTop, type AreaId, type Fixture, type FixtureProfile, type FixtureState, type StageElement } from '@sanctuary/shared';
 import { useApp } from '../state/store';
 import { api } from '../lib/api';
 import { beamFor, lightColor } from '../lib/fixtureVisual';
@@ -33,7 +33,13 @@ const snap = (v: number) => Math.round(v / SNAP) * SNAP;
 /** Fixtures dragged from the Arrange list carry this data type. */
 export const FIXTURE_DRAG_TYPE = 'application/x-sanctuary-fixture';
 
-export function StageView({ compact = false, highlightArea = null, arrange = false }: { compact?: boolean; highlightArea?: AreaId | null; arrange?: boolean }) {
+const OFF: FixtureState = { intensity: 0 };
+/** Controls for this fixture weren't confirmed by the import (or its type is unknown). */
+const unconfirmed = controlsUnknown;
+
+export function StageView({ compact = false, highlightArea = null, arrange = false, toolbarExtra, hideGroupChips = false }: {
+  compact?: boolean; highlightArea?: AreaId | null; arrange?: boolean; toolbarExtra?: ReactNode; hideGroupChips?: boolean;
+}) {
   const config = useApp((s) => s.config);
   const levels = useApp((s) => s.levels);
   const selection = useApp((s) => s.selection);
@@ -44,6 +50,23 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
   const draftElements = useApp((s) => s.draftElements);
   const role = useApp((s) => s.role);
   const mode = useApp((s) => s.status?.mode ?? 'offline');
+  // While a look is being designed, the stage shows the draft (nothing is sent anywhere).
+  const designer = useApp((s) => (compact ? null : s.designer));
+  const previewAt = useApp((s) => s.designerPreviewAt);
+  const [, tick] = useState(0);
+  const fadeMs = (designer?.fadeSeconds ?? 0) * 1000;
+  const previewT = designer && previewAt && fadeMs > 0 ? Math.min(1, (Date.now() - previewAt) / fadeMs) : 1;
+  useEffect(() => {
+    if (previewT >= 1) return;
+    const id = requestAnimationFrame(() => tick((n) => n + 1));
+    return () => cancelAnimationFrame(id);
+  });
+  const stateOf = (f: Fixture): FixtureState | undefined => {
+    if (!designer) return levels?.levels[f.channel];
+    const s = designer.states[f.channel];
+    if (!s) return OFF;
+    return previewT < 1 ? interpolateState(OFF, s, previewT) : s;
+  };
   const svgRef = useRef<SVGSVGElement>(null);
   const [vb, setVb] = useState<ViewBox | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -150,7 +173,7 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
   const saveLayout = () => void useApp.getState().saveLayout();
   const unplacedCount = allFixtures.filter((f) => f.unplaced).length;
   const singleSel = editLayout && selection.length === 1 ? fixtures.find((f) => f.channel === selection[0]) : undefined;
-  const groupChips = (config?.groups ?? []).filter((g) => !compact || g.volunteerVisible);
+  const groupChips = hideGroupChips ? [] : (config?.groups ?? []).filter((g) => !compact || g.volunteerVisible);
   const anySource = levels ? (Object.values(levels.sources).includes('commanded') ? 'commanded' : 'simulated') : 'simulated';
 
   return (
@@ -168,6 +191,7 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
               onChange={(e) => useApp.getState().rotateFixture(singleSel.id, Number(e.target.value) % 360)} />
           </label>
         )}
+        {toolbarExtra}
         <Tip label="Show labels"><button className={`btn sm icon ${showLabels ? 'active' : ''}`} aria-pressed={showLabels} aria-label="Show labels" onClick={() => setShowLabels(!showLabels)}><Tag size={15} /></button></Tip>
         <Tip label="Zoom out"><button className="btn sm icon" aria-label="Zoom out" onClick={() => zoom(1.25)}><ZoomOut size={15} /></button></Tip>
         <Tip label="Zoom in"><button className="btn sm icon" aria-label="Zoom in" onClick={() => zoom(0.8)}><ZoomIn size={15} /></button></Tip>
@@ -237,16 +261,16 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
           )}
 
           <g style={{ mixBlendMode: 'screen' }} pointerEvents="none">
-            {fixtures.map((f) => <Beam key={f.id} f={f} profile={profiles.get(f.profileId)} state={levels?.levels[f.channel]} />)}
+            {fixtures.map((f) => <Beam key={f.id} f={f} profile={profiles.get(f.profileId)} state={stateOf(f)} />)}
           </g>
 
           {editLayout && fixtures.filter((f) => f.unplaced).map((f) => (
             <circle key={`u-${f.id}`} cx={f.stage.x} cy={f.stage.y} r={24} fill="none" stroke="#f5b942" strokeWidth={2} strokeDasharray="5 4" pointerEvents="none" />
           ))}
           {fixtures.map((f) => (
-            <FixtureGlyph key={f.id} f={f} profile={profiles.get(f.profileId)} state={levels?.levels[f.channel]}
+            <FixtureGlyph key={f.id} f={f} profile={profiles.get(f.profileId)} state={stateOf(f)}
               selected={selected.has(f.channel)} showLabel={showLabels || (arrange && editLayout)} onPointerDown={(e) => onFixtureDown(e, f)} editing={editLayout}
-              dim={!!highlightArea && f.area !== highlightArea} />
+              dim={(!!highlightArea && f.area !== highlightArea) || (!!designer && !designer.states[f.channel])} unknown={!compact && unconfirmed(profiles.get(f.profileId))} />
           ))}
 
           {drag?.kind === 'marquee' && (
@@ -255,12 +279,21 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
           )}
         </svg>
         <div className="stage-watermark">
-          {mode === 'offline' || anySource === 'simulated'
+          {designer
+            ? <span className="badge designer"><Palette size={11} />Look Designer · draft preview, nothing is sent</span>
+            : mode === 'offline' || anySource === 'simulated'
             ? <span className="badge sim"><span className="dot" />Simulated preview</span>
             : <span className="badge commanded"><span className="dot" />Commanded — not confirmed by console</span>}
           {editLayout && <span className="badge warn">Editing layout — unsaved</span>}
         </div>
-        {!compact && <div className="stage-legend"><span className="hint">Shift-drag to box-select · scroll to zoom</span></div>}
+        {!compact && (
+          <div className="stage-legend">
+            <Tip label="The stage picture is a conceptual sketch: beam sizes, colors and brightness are approximations from the fixture type, not a photometric model of the sanctuary. Fixtures marked ? have controls the import couldn't confirm, so only intensity is shown for them.">
+              <span className="hint legend-note" tabIndex={0}><Info size={12} />Conceptual preview, not photometric · <span className="unknown-mark">?</span> controls not confirmed</span>
+            </Tip>
+            <span className="hint">Shift-click or shift-drag to select more · scroll to zoom</span>
+          </div>
+        )}
       </div>
       {!compact && selection.length > 0 && levels && (
         <div className="row" style={{ padding: '6px 10px', borderTop: '1px solid var(--line)' }}>
@@ -296,8 +329,8 @@ function Beam({ f, profile, state }: { f: Fixture; profile?: FixtureProfile; sta
   );
 }
 
-function FixtureGlyph({ f, profile, state, selected, showLabel, onPointerDown, editing, dim = false }: {
-  f: Fixture; profile?: FixtureProfile; state?: FixtureState; selected: boolean; showLabel: boolean; editing: boolean; dim?: boolean;
+function FixtureGlyph({ f, profile, state, selected, showLabel, onPointerDown, editing, dim = false, unknown = false }: {
+  f: Fixture; profile?: FixtureProfile; state?: FixtureState; selected: boolean; showLabel: boolean; editing: boolean; dim?: boolean; unknown?: boolean;
   onPointerDown(e: RPointerEvent): void;
 }) {
   const level = (state?.intensity ?? 0) / 100;
@@ -331,7 +364,7 @@ function FixtureGlyph({ f, profile, state, selected, showLabel, onPointerDown, e
   }
   return (
     <g className="fixture" transform={`translate(${x} ${y})`} onPointerDown={onPointerDown} style={{ cursor: editing ? 'move' : 'pointer' }} opacity={dim ? 0.22 : 1}
-      role="button" aria-pressed={selected} aria-label={`Channel ${f.channel} ${f.label}, ${Math.round(level * 100)} percent`}>
+      role="button" aria-pressed={selected} aria-label={`Channel ${f.channel} ${f.label}, ${Math.round(level * 100)} percent${unknown ? ', controls not confirmed' : ''}`}>
       <title>{`${f.channel} · ${f.label}`}</title>
       {selected && <circle r={22} fill="none" stroke="#f5b942" strokeOpacity={0.35} strokeWidth={6} />}
       {level > 0.02 && kind !== 'relay' && <circle r={16} fill={`rgb(${r},${g},${b})`} opacity={0.35 * level} filter="url(#glow)" />}
@@ -340,6 +373,12 @@ function FixtureGlyph({ f, profile, state, selected, showLabel, onPointerDown, e
         <rect x={-13} y={-8} width={26} height={14} rx={7} fill={selected ? '#f5b942' : '#aab3cc'} />
         <text className="fixture-chan" textAnchor="middle" y={3}>{f.channel}</text>
       </g>
+ {unknown && (
+        <g transform="translate(15 -15)" aria-hidden>
+          <circle r={7} fill="#2a1f05" stroke="#f5b942" strokeWidth={1.2} />
+          <text textAnchor="middle" y={3.5} fontSize={9} fontWeight={800} fill="#f5b942">?</text>
+        </g>
+      )}
       {showLabel && <text className="fixture-label" textAnchor="middle" y={kind === 'led-bar' || kind === 'striplight' ? 20 : 28}>{f.label}</text>}
     </g>
   );

@@ -27,10 +27,10 @@ The top banner must read **OFFLINE SIMULATION** the whole time.
 | S2 | **Import Eos Show** (top bar) with the CSV you exported from Eos ([guide](IMPORT_EOS_SHOW.md)). Read the preview and its **Issues** tab, then **Import** | Your real channels, fixture types, groups, cue lists and labels. Nothing was sent to Eos. |
 | S3 | In **Settings → Patch**, check that every relay and utility channel is **protected** (relays named in Eos are protected automatically). **Delete the two "DEMO Mover" rows** if you merged. | Protected channels show red outlines on the stage |
 | S4 | **Settings → Groups**: check the imported groups. Each has its Eos group number. | Groups show **unverified** for now. That's expected; nothing is connected. |
-| S5 | **Worship** mode: click group chips, move faders, try colors | The stage picture changes. The toast says **"preview only (offline). Nothing was sent to Eos."** |
+| S5 | **Design** view: pick groups on the left, move the inspector's faders, try colors | The stage picture changes. The toast says **"preview only (offline). Nothing was sent to Eos."** |
 | S6 | Click a relay channel and press **Full** | **Blocked**: "Protected channel(s)…" |
 | S7 | **Volunteer** mode: press looks and GO/BACK | Preview only; each look is labelled **Local look · preview only** unless mapped to an Eos system cue |
-| S8 | **Architectural** mode | Explains SceneStation and shows "Not yet done" for the audit |
+| S8 | **Building** view (architectural lighting) | Explains SceneStation and shows "Not yet done" for the audit |
 | S9 | Look in Eos | **Nothing in Eos changed.** (It can't: SIM sends no network traffic.) |
 
 ✅ **Checkpoint 1:** the patch is loaded, relays are protected, and Eos was untouched.
@@ -47,7 +47,7 @@ MONITOR connects to Eos but **can only listen**. Lighting commands are blocked t
 | M4 | Console person: press **GO** on a harmless cue in Eos | Sanctuary Light's **Current cue** card updates, with a green **CONSOLE** badge |
 | M5 | **Recovery test: skip it until the SceneStation audit is done.** Closing Eos stops its DMX output, and nobody knows yet what the Gadget II, wireless DMX and SceneStations do then. Don't close Eos, restart the PC or unplug any lighting cable for this test. Instead, observe it **during** the SceneStation audit (worksheet part D2, with the qualified person), with Sanctuary Light open in MONITOR. *Eos on a separate console:* you may unplug **this computer's own** network cable for about 20 s (never the console's, a node's or a DMX cable). | Yellow "Not connected / STALE" banner while Eos is unreachable, then back to MONITOR by itself. The log says "Console connection recovered automatically". |
 | M6 | Wizard: **Verify Eos groups** (or *Settings → Groups → Verify against console*) | Each group reads **verified**, **mismatch** or **protected**. Mismatch means the app's list differs from Eos's group; the app will use its own channel list instead. |
-| M7 | Try a fader or look in Worship mode | **Blocked**: "Monitor mode is read-only". Eos is unchanged. |
+| M7 | Try a fader or look in the Design view | **Blocked**: "Monitor mode is read-only". Eos is unchanged. |
 | M8 | *Optional:* **Settings → Connection → Read patch & cues** | Eos patch and cue list numbers appear in *Settings → Patch → Console sync results* for review. Nothing is applied until you choose to. |
 
 ✅ **Checkpoint 2:** connection test passed, cue feedback works, recovery worked, groups checked, and Eos was untouched.

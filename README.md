@@ -12,11 +12,11 @@ Edge app window  ⇄  Sanctuary Light server  ⇄  OSC (TCP, 127.0.0.1)  ⇄  ET
 
 Eos stays the lighting engine and the fallback. Sanctuary Light sends it commands such as "Chan 21 Thru 29 At 75" or "fire cue 1/6", using the same syntax an operator types. **It never sends DMX, sACN or Art-Net itself**, so the Gadget II, the wireless DMX and SceneStation see exactly what Eos sends today.
 
-| Volunteer mode | Operator mode |
+| Volunteer Mode | Design workspace |
 |---|---|
 | ![Volunteer](docs/screenshots/volunteer.png) | ![Operator](docs/screenshots/operator.png) |
 
-> **Status: Phase 3.5 (ready to install on the sanctuary PC and work with the real show in Offline Simulation and Monitor mode). Tested only against sample files and a *fake* Eos console**, with CI on Windows (x64), Linux and Apple Silicon macOS. **Not yet tested with our physical lighting system.** Installing? Start with [`docs/INSTALLATION_READINESS.md`](docs/INSTALLATION_READINESS.md).
+> **Status: Phase 4A (design workspace, Look Designer and a new Volunteer Mode) on top of Phase 3.5 (ready to install on the sanctuary PC and work with the real show in Offline Simulation and Monitor mode). Tested only against sample files and a *fake* Eos console**, with CI on Windows (x64), Linux and Apple Silicon macOS. **Not yet tested with our physical lighting system.** Installing? Start with [`docs/INSTALLATION_READINESS.md`](docs/INSTALLATION_READINESS.md).
 > The app has **not** been connected to the real Eos system yet. On-site commissioning uses the built-in **Eos Setup Wizard**; see [`docs/START_HERE.md`](docs/START_HERE.md) and [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md). The sample patch, groups, looks and cue labels are placeholders built from the preliminary channel groupings. Nothing in them has been checked against the real show file.
 
 ---
@@ -81,11 +81,12 @@ Then sign in as operator, open **Eos setup**, enter the version you started the 
 
 ## Interface modes
 
-* **Volunteer**: big worship looks, approved submasters, and GO/BACK once an operator has approved the master cue list.
-* **Worship**: full visual control through Eos (operator PIN).
-* **Architectural Status**: how the SceneStation wall stations relate to Eos, from the physical audit. **Read-only: Sanctuary Light does not control SceneStation.**
+* **Volunteer**: a calm screen for worship. What's on now and next, big GO/BACK (only once an operator has approved the master cue list), the approved look buttons and approved room lights. No Eos syntax or channel numbers.
+* **Design** (operator PIN): the lighting design workspace. A large stage, the fixture and group browser on the left, the inspector on the right, and looks, cues and submasters below. Panels can be hidden and the stage can fill the window (**F**). The **Look Designer** builds local looks fixture by fixture ([`docs/LOOK_DESIGNER.md`](docs/LOOK_DESIGNER.md)).
+* **Building**: how the SceneStation wall stations relate to Eos, from the physical audit. **Read-only: Sanctuary Light does not control SceneStation.**
+* **Setup** (operator PIN): import, review, arrange and verify the real show.
 
-Looks are labelled **Local look · preview only** (stored in Sanctuary Light) or **Eos · Cue 1/5** (plays show-file data). Nothing in Sanctuary Light writes to the Eos show file.
+Looks are either **local** (designed in Sanctuary Light; playing one only changes the preview, with a simulated fade in Offline Simulation) or **Eos** looks (**Eos · Cue 1/5**: play show-file data in Live, after an operator's approval for volunteers). Nothing in Sanctuary Light writes to the Eos show file, and local looks are never turned into Eos commands.
 
 ## Documentation
 
@@ -94,6 +95,7 @@ Looks are labelled **Local look · preview only** (stored in Sanctuary Light) or
 | Document | Contents |
 |---|---|
 | [`docs/INSTALLATION_READINESS.md`](docs/INSTALLATION_READINESS.md) | **Installing on the sanctuary PC:** exact steps, export/import, verifying against Eos, limitations, what still needs testing, checklist for the lighting computer |
+| [`docs/LOOK_DESIGNER.md`](docs/LOOK_DESIGNER.md) | The Design workspace and Look Designer: building, saving and organising local looks; what the preview can and can't tell you |
 | [`docs/START_HERE.md`](docs/START_HERE.md) | Hardware-testing roadmap for the Technical Arts Director |
 | [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md) | The Setup workflow: review fixtures, arrange the stage, worship looks and approval, Show Verification |
 | [`docs/FIRST_REAL_CONNECTION.md`](docs/FIRST_REAL_CONNECTION.md) | The supervised 7-step first connection on the sanctuary PC |
@@ -197,6 +199,7 @@ On Eos 2.0+ you can also use *Settings → Connection → Read patch & cues from
 1. **Phase 1, visual prototype** ✅: stage editor, simulated beams, faders, color wheel, CCT, pan/tilt, beam, looks, cues, volunteer mode.
 2. **Phase 2, real ETC integration** ✅ *(code complete; awaiting on-site verification)*: OSC over UDP / TCP 1.0 / TCP 1.1, monitor and live modes, cue feedback, connection testing.
    **Phase 2.5, reliability and integration** ✅: version-aware port rules (corrected 3032/3037 guidance), cue-list GO/BACK, group verification against the console, config migration, and the Ion Setup Wizard. Next step: [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md) at church.
+   **Phase 4A, Visual experience and Look Designer** ✅ *(simulation only; awaiting design feedback)*: design workspace, Look Designer with collections, thumbnails and simulated crossfades, redesigned Volunteer Mode. See [`docs/LOOK_DESIGNER.md`](docs/LOOK_DESIGNER.md).
    **Phase 3.5, Real-world installation and first sanctuary test** ✅ *(software ready; not yet run on the sanctuary PC)*: first-launch welcome, import report, guided same-PC Monitor connection, SceneStation notice, installer/uninstaller safety checks, test-suite guard against Eos ports. See [`docs/INSTALLATION_READINESS.md`](docs/INSTALLATION_READINESS.md).
    **Phase 3.4, Real sanctuary configuration and verification** ✅ *(simulation-tested; awaiting the sanctuary system)*: Setup workflow, Show Verification, volunteer approval, First Real Connection. See [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md).
    **Phase 3.3, Import Eos Show** ✅ *(tested with sample exports; awaiting the real show export)*: CSV and USITT ASCII import with preview, conflicts, backup/undo, and stage arranging. See [`docs/IMPORT_EOS_SHOW.md`](docs/IMPORT_EOS_SHOW.md).
