@@ -74,7 +74,7 @@ function CueTable({ list, editable }: { list: number; editable: boolean }) {
     const label = labels[cue];
     if (label === undefined) return;
     const next = config.cueLists.map((l) => l.list !== list ? l : { ...l, cues: l.cues.map((c) => (c.cue === cue ? { ...c, label } : c)) });
-    try { await api.put('/api/config/cueLists', next); useApp.getState().toast('info', 'Label saved locally (Ion cue label unchanged).'); }
+    try { await api.put('/api/config/cueLists', next); useApp.getState().toast('info', 'Label saved locally (Eos cue label unchanged).'); }
     catch (e) { useApp.getState().toast('error', (e as Error).message); }
   };
 

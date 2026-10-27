@@ -23,8 +23,8 @@ export function describeConsoleIp(ip: string): { ok: boolean; note: string } {
   const n = toInt(ip);
   if (n == null) return { ok: false, note: 'Not an IPv4 address.' };
   const first = n >>> 24;
-  if (ip === '127.0.0.1') return { ok: true, note: 'Loopback — only valid for the development console simulator.' };
-  if (first === 169 && ((n >>> 16) & 255) === 254) return { ok: true, note: 'Link-local (169.254.x.x): the Ion assigned this itself because no DHCP server answered. It can change; prefer a static address.' };
+  if (ip === '127.0.0.1') return { ok: true, note: 'This computer (loopback): use when Eos/ETCnomad runs on the same PC as Sanctuary Light (documented for Eos 3.2+). On older versions, use this PC\'s own network address instead.' };
+  if (first === 169 && ((n >>> 16) & 255) === 254) return { ok: true, note: 'Link-local (169.254.x.x): Eos assigned this itself because no DHCP server answered. It can change; prefer a static address.' };
   if (first === 0 || first >= 224) return { ok: false, note: 'Not a usable host address.' };
   return { ok: true, note: '' };
 }

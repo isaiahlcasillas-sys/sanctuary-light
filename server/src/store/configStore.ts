@@ -1,6 +1,6 @@
 /**
  * JSON-file persistence for layouts, patch, looks and preferences.
- * Nothing here ever talks to the console: saving a layout cannot change the Ion show file.
+ * Nothing here ever talks to the console: saving a layout cannot change the Eos show file.
  * Every save keeps a timestamped backup (last 50) under data/backups.
  */
 import fs from 'node:fs';
@@ -18,7 +18,7 @@ export function migrateConfig(raw: Partial<AppConfig>, defaults: AppConfig): { c
   const conn = { ...defaults.settings.connection, ...raw.settings?.connection };
   // v0.1 stored coarse guesses ("2.x") that were never read from the console.
   if (['1.x', '2.x', '3.x'].includes(conn.eosVersion)) {
-    notes.push(`Eos version "${conn.eosVersion}" was a placeholder, not read from the console. It has been cleared — run the Ion Setup Wizard.`);
+    notes.push(`Eos version "${conn.eosVersion}" was a placeholder, not read from the console. It has been cleared — run the Eos Setup Wizard.`);
     conn.eosVersion = '';
   }
   // v0.1 defaulted to TCP 3037, which only exists on Eos 3.1+.
@@ -152,6 +152,14 @@ export class ConfigStore {
     // Write-then-rename so a crash never leaves a half-written config.
     const tmp = `${this.file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(cfg, null, 2));
-    fs.renameSync(tmp, this.file);
+    // On Windows, antivirus or the search indexer can hold the file for a moment.
+    for (let attempt = 0; ; attempt++) {
+      try { fs.renameSync(tmp, this.file); return; } catch (e) {
+        const code = (e as NodeJS.ErrnoException).code;
+        if (attempt >= 10 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw e;
+        const until = Date.now() + 50 * (attempt + 1);
+        while (Date.now() < until) { /* brief synchronous wait; saves are rare */ }
+      }
+    }
   }
 }

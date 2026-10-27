@@ -22,7 +22,7 @@ export function ReadinessSettings() {
         <h4 className="grow">Sunday readiness</h4>
         <button className="btn sm" onClick={load}><RefreshCw size={14} />Re-check</button>
       </div>
-      <p className="hint">Nothing on this page changes anything. It lists what still has to be done before Sanctuary Light is used during worship, with someone at the Ion as backup. See docs/SUNDAY_READINESS.md.</p>
+      <p className="hint">Nothing on this page changes anything. It lists what still has to be done before Sanctuary Light is used during worship, with someone at the Eos computer as backup. See docs/SUNDAY_READINESS.md.</p>
       {report && (
         <div className="card" style={{ borderColor: report.readyForSupervisedSunday ? 'var(--ok)' : 'var(--err)' }}>
           <strong>{report.readyForSupervisedSunday

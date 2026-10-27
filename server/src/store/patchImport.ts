@@ -5,7 +5,7 @@
  *   channel*, label, profile, universe, address, dmx, area, protected, x, y, rotation, notes
  * - "channel" is the Eos channel number. Aliases: chan, ch.
  * - "dmx" may be "2/101" (universe/address) or an absolute Eos address like 613.
- *   Universe/address are informational in Ion mode.
+ *   Universe/address are informational in Eos mode.
  * - "profile" matches a profile id or name; unknown types fall back to "generic".
  */
 import type { AreaId, Fixture, FixtureProfile } from '@sanctuary/shared';

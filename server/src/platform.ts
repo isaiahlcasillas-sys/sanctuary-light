@@ -13,7 +13,14 @@ export type SleepPrevention = 'off' | 'system' | 'display';
  * leave the Mac permanently awake. No-op on other platforms.
  */
 export function preventSleep(mode: SleepPrevention, log: (msg: string) => void, platform = process.platform): ChildProcess | null {
-  if (mode === 'off' || platform !== 'darwin') return null;
+  if (mode === 'off') return null;
+  if (platform === 'win32') {
+    // On Windows the supervisor script (deploy/windows/run-server.ps1) keeps the PC awake
+    // with SetThreadExecutionState for as long as it runs.
+    log('Sleep prevention is handled by the Windows supervisor (run-server.ps1).');
+    return null;
+  }
+  if (platform !== 'darwin') return null;
   const flags = mode === 'display' ? '-di' : '-i';
   try {
     const child = spawn('/usr/bin/caffeinate', [flags, '-w', String(process.pid)], { stdio: 'ignore' });

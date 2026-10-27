@@ -11,6 +11,10 @@
  *
  *   npm run eos-sim                         # behaves like Eos 3.3
  *   npm run eos-sim -- --version 2.9.3      # behaves like Eos 2.9 (no 3037, no /eos/cues)
+ *
+ * NEVER run it on the sanctuary PC: it uses Eos's own ports, so it could stop the real
+ * ETCnomad from opening them, or be mistaken for the real console. On Windows it refuses
+ * to start without --not-the-sanctuary-pc.
  */
 import dgram from 'node:dgram';
 import net from 'node:net';
@@ -173,6 +177,12 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
 }
 
 if (process.argv[1] && /fake-eos\.ts$/.test(process.argv[1])) {
+  if (process.platform === 'win32' && !process.argv.includes('--not-the-sanctuary-pc')) {
+    console.error('The FAKE Eos console uses the real Eos ports (3032, 3037, UDP 8000).');
+    console.error('Never run it on the sanctuary PC: it could block ETCnomad or be mistaken for it.');
+    console.error('On a development PC without Eos, run:  npm run eos-sim -- --not-the-sanctuary-pc');
+    process.exit(1);
+  }
   const i = process.argv.indexOf('--version');
   void startFakeEos({ version: i > 0 ? process.argv[i + 1] : undefined });
 }

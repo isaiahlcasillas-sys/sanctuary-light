@@ -10,14 +10,14 @@ export function ArmDialog({ open, onOpenChange }: { open: boolean; onOpenChange(
     if (r.ok) onOpenChange(false);
   };
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Arm live control of the Ion?"
+    <Modal open={open} onOpenChange={onOpenChange} title="Arm live control of Eos?"
       description="Live mode sends OSC commands to the console and will change lights in the sanctuary.">
       <ul className="checklist">
         <li>Console: <strong>{c?.consoleIp || 'not set'}</strong> via {c?.transport.toUpperCase()} (Eos {c?.eosVersion || 'version not set'})</li>
         <li>Groups are sent as “Group N” only when the console has confirmed their membership; otherwise each channel is listed explicitly.</li>
-        <li>The Ion keeps all DMX output, cues and patch. Sanctuary Light never sends sACN/Art-Net in this mode.</li>
+        <li>Eos keeps all DMX output, cues and patch. Sanctuary Light never sends sACN/Art-Net in this mode.</li>
         <li>Fader levels you see are <em>commanded</em>, not confirmed — Eos does not report every channel level back.</li>
-        <li>Disconnecting or closing this app never sends a blackout. The Ion stays in its current state.</li>
+        <li>Disconnecting or closing this app never sends a blackout. Eos stays in its current state.</li>
         <li>Relay/utility channels stay locked until separately unlocked.</li>
       </ul>
       {!c?.consoleIp && <p style={{ color: 'var(--err)' }}>Set the console IP address in Settings → Connection first.</p>}

@@ -11,7 +11,7 @@ export function CueSubSettings() {
   return (
     <div>
       <h4>Cue lists</h4>
-      <p className="hint">Labels here are for this app's display only. Editing them never renames cues in the Ion show file. Use "Read patch &amp; cues from console" (Eos 2.0+) to fetch real cue numbers.</p>
+      <p className="hint">Labels here are for this app's display only. Editing them never renames cues in the Eos show file. Use "Read patch &amp; cues from console" (Eos 2.0+) to fetch real cue numbers.</p>
       {cues.draft.map((l, i) => (
         <div key={i} className="card">
           <div className="row">

@@ -78,7 +78,7 @@ export function eosCapabilities(versionText: string | null | undefined): EosCapa
       thirdParty3037: 'verify', thirdPartyToggle: 'unknown', thirdParty3038: 'verify', customTcpPorts: 'verify',
       getApi: 'verify', cueListFireStop: 'verify', oscRxTxSetting: 'Setup > System > Show Control',
       interfaceProtocols: 'unknown',
-      notes: ['Eos version not identified. Run the Ion Setup Wizard before connecting.'],
+      notes: ['Eos version not identified. Run the Eos Setup Wizard before connecting.'],
     };
   }
   const v2 = versionAtLeast(v, 2, 0);
@@ -137,7 +137,7 @@ export function recommendConnection(versionText: string | null | undefined): Con
       transport: 'tcp-1.0', port: 3032,
       summary: 'TCP port 3032 with the console\'s OSC TCP format. The Eos default is OSC 1.0 (packet-length); choose OSC 1.1 here only if the console is set to SLIP.',
       consoleSteps: [
-        `Enable OSC for the network interface the Ion uses: ${caps.interfaceProtocols}${versionAtLeast(parseEosVersion(versionText), 3, 3) ? ' ("OSC TCP")' : ' ({UDP Strings & OSC})'}.`,
+        `Enable OSC for the network interface Eos uses: ${caps.interfaceProtocols}${versionAtLeast(parseEosVersion(versionText), 3, 3) ? ' ("OSC TCP")' : ' ({UDP Strings & OSC})'}.`,
         `Check the OSC TCP format: ${caps.tcp3032FramingSetting}. Match it in Sanctuary Light.`,
         `Enable OSC receive and transmit: ${caps.oscRxTxSetting}.`,
       ],
@@ -155,7 +155,9 @@ export function recommendConnection(versionText: string | null | undefined): Con
 }
 
 /** Errors block saving; warnings are shown but allowed. */
-export function checkConnectionCompat(c: Pick<ConnectionSettings, 'eosVersion' | 'transport' | 'tcpPort' | 'goBackMethod'>): { errors: string[]; warnings: string[] } {
+export function checkConnectionCompat(
+  c: Pick<ConnectionSettings, 'eosVersion' | 'transport' | 'tcpPort' | 'goBackMethod'> & Partial<Pick<ConnectionSettings, 'consoleIp' | 'udpConsolePort' | 'udpLocalPort'>>,
+): { errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];
   const caps = eosCapabilities(c.eosVersion);
@@ -179,6 +181,11 @@ export function checkConnectionCompat(c: Pick<ConnectionSettings, 'eosVersion' |
     } else if (c.transport === 'tcp-1.1') {
       warnings.push('Port 3032 defaults to OSC 1.0 (packet-length). OSC 1.1 only works if the console\'s OSC TCP format is set to SLIP.');
     }
+  }
+  if (c.consoleIp === '127.0.0.1') {
+    // Same-PC deployment (Eos/ETCnomad and Sanctuary Light on one computer).
+    if (!versionAtLeast(parseEosVersion(c.eosVersion), 3, 2)) warnings.push(`Connecting to Eos on this computer (127.0.0.1) is documented for Eos 3.2 and later; this is ${c.eosVersion}. If it doesn't connect, use this PC's own network address.`);
+    if (c.transport === 'udp' && c.udpLocalPort === c.udpConsolePort) errors.push(`Eos on this computer already listens on UDP ${c.udpConsolePort}. Sanctuary Light must listen on a different port (Eos "OSC UDP TX").`);
   }
   if (c.goBackMethod === 'cue-list' && caps.cueListFireStop === 'no') {
     errors.push('/eos/cues/<list>/fire|stop is not in the Eos 2.x documentation. Use "Console keys" or "Automatic".');

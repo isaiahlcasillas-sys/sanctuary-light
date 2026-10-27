@@ -3,7 +3,7 @@ import type { AppConfig, LevelsSnapshot, Look, LookPreviewEntry } from '@sanctua
 /**
  * Turn what the stage view currently shows into a look preview, one entry per group.
  * Groups containing protected (relay/utility) channels are never captured.
- * This is local Sanctuary Light data — it is not written to the Ion show file.
+ * This is local Sanctuary Light data — it is not written to the Eos show file.
  */
 export function previewFromStage(config: AppConfig, levels: LevelsSnapshot | null): LookPreviewEntry[] {
   const prot = new Set(config.fixtures.filter((f) => f.protected).map((f) => f.channel));

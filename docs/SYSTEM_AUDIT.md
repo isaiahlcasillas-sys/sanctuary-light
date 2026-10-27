@@ -1,6 +1,6 @@
 # Sanctuary lighting system audit (questionnaire and checklist)
 
-Purpose: find out how the Ion, SceneStation, ETC Gadget II, ENTTEC ODE Mk3, Pathport and the DMX lines are **actually** connected, and what happens when each part fails. Do it outside services. Record the answers in *Settings → Architectural audit* (they appear on the **Architectural Status** page) and keep photos in a shared folder.
+Purpose: find out how Eos (ETCnomad on the sanctuary Windows PC, and the Ion if still used), SceneStation, ETC Gadget II, the wireless DMX, ENTTEC ODE Mk3, Pathport and the DMX lines are **actually** connected, and what happens when each part fails. Do it outside services. Record the answers in *Settings → Architectural audit* (they appear on the **Architectural Status** page) and keep photos in a shared folder.
 
 > Rule: write down what you **see and test**, not what someone remembers. Mark anything you couldn't verify as *unknown*.
 
@@ -12,14 +12,16 @@ For every device, record make, model, serial, firmware, location, IP address (if
 
 | # | Device | Model / serial | Firmware | Location | IP | Photo |
 |---|---|---|---|---|---|---|
-| A1 | ETC Ion (Classic, Win XP or Win 7?) | | Eos version (Browser → Help → About) | | | |
-| A2 | ETC Gadget II | | | Which computer is it plugged into? | — | |
+| A0 | Sanctuary Windows 11 PC running ETCnomad (and its USB license key) | | Windows version; Eos version (Browser → Help → About) | | | |
+| A1 | ETC Ion, if still used (Classic, Win XP or Win 7?) | | Eos version | | | |
+| A2 | ETC Gadget II | | | Sanctuary PC, which USB port? Which DMX port feeds what? | — | |
 | A3 | ENTTEC ODE Mk3 | | | | | |
 | A4 | Pathway Pathport (each unit) | | | | | |
 | A5 | Network switch(es) on the lighting network | | | | — | |
 | A6 | SceneStation (each station) | SS-105/205/305? | LED color code (manual App. C) | | — | |
 | A7 | Dimmer racks / relay panels | | | | | |
-| A8 | Any other DMX source (wireless DMX, splitters, mergers) | | | | | |
+| A8 | Wireless DMX transmitter and each receiver | | | | — | |
+| A9 | Any other DMX source (splitters, mergers) | | | | | |
 
 ## B. Signal path (draw it)
 
@@ -63,12 +65,12 @@ Do these in order and record exactly what the lights and wall buttons did.
 |---|---|---|
 | E1 | Ion running a normal cue: press each SceneStation button | Did any lights change? Did the station LEDs show "locked"? |
 | E2 | On the Ion, release to a dark state, then press a wall button | Same questions |
-| E3 | **Unplug the Ion's network or DMX output** (or close the show) | Did lights hold, fade or go dark? Did any SceneStation take over? After how many seconds? What did it output? |
+| E3 | **Close Eos on the sanctuary PC** (or unplug the Ion's network/DMX output, if the Ion is used) | Did lights hold, fade or go dark? Did any SceneStation take over? After how many seconds? What did it output? |
 | E4 | With the Ion still disconnected, press each wall button | Do they work now? |
 | E5 | Reconnect the Ion | Did the Ion take back control smoothly? Any flash or jump? |
-| E6 | Quit Sanctuary Light / shut down the Mac while in Live mode | **Expected: nothing changes.** The Ion keeps its state. |
+| E6 | End Sanctuary Light only (Task Manager → `node.exe`) while in Live mode. Don't shut the PC down: that also stops Eos (E3). | **Expected: nothing changes.** Eos keeps its state. |
 | E7 | Power-cycle one SceneStation | Which preset came up? Did it go passive while the Ion was outputting? |
-| E8 | Simulated power cut (building procedure permitting) | Order of recovery: dimmers, nodes, Ion, SceneStation, Mac |
+| E8 | Simulated power cut (building procedure permitting) | Order of recovery: dimmers, nodes, wireless DMX, sanctuary PC + Eos, SceneStation, Sanctuary Light |
 
 ## F. Answers to carry into Sanctuary Light
 

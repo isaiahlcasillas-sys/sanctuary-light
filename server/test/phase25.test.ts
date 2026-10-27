@@ -78,6 +78,14 @@ describe('Eos version capabilities', () => {
     expect(checkConnectionCompat({ ...base, eosVersion: '2.9.3', transport: 'tcp-1.1', tcpPort: 3032 }).warnings[0]).toMatch(/OSC 1\.0/);
   });
 
+  it('checks same-PC (127.0.0.1) settings', () => {
+    const base = { goBackMethod: 'auto' as const, consoleIp: '127.0.0.1' };
+    expect(checkConnectionCompat({ ...base, eosVersion: '3.3.10', transport: 'tcp-1.1', tcpPort: 3037 })).toEqual({ errors: [], warnings: [] });
+    expect(checkConnectionCompat({ ...base, eosVersion: '3.0.2', transport: 'tcp-1.0', tcpPort: 3032 }).warnings[0]).toMatch(/3\.2/);
+    expect(checkConnectionCompat({ ...base, eosVersion: '3.3.10', transport: 'udp', tcpPort: 3032, udpConsolePort: 8000, udpLocalPort: 8000 }).errors[0]).toMatch(/different port/);
+    expect(checkConnectionCompat({ ...base, eosVersion: '3.3.10', transport: 'udp', tcpPort: 3032, udpConsolePort: 8000, udpLocalPort: 8001 }).errors).toEqual([]);
+  });
+
   it('rejects version typos and placeholders', () => {
     expect(parseEosVersion('10.101.100.101')).toBeNull();
     expect(parseEosVersion('300')).toBeNull();
@@ -126,7 +134,7 @@ describe('Config migration from v0.1', () => {
     a.settings.connection.consoleIp = '10.0.0.1';
     const b = defaultConfig();
     expect(b.groups[0].channels).not.toContain(999);
-    expect(b.settings.connection.consoleIp).toBe('');
+    expect(b.settings.connection.consoleIp).toBe('127.0.0.1');
   });
 
   it('new installs start with no Eos version and refuse to connect', async () => {

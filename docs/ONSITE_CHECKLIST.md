@@ -1,10 +1,27 @@
 # On-site information checklist
 
-*Gather the facts Sanctuary Light needs about our real system. **Read and photograph only**: nothing here changes the Ion, the gateways, the wiring or any lights.*
+*Gather the facts Sanctuary Light needs about our real system. **Read and photograph only**: nothing here changes Eos, the show file, the Gadget II, the wireless DMX, the gateways, the wiring or any lights.*
 
-Bring: a phone camera, a notebook (or print this page), a USB drive, and the booth Mac. Take a photo of every screen and label you record. Save the photos in a shared folder named with today's date.
+Bring: a phone camera, a notebook (or print this page) and a USB drive. You'll work at the sanctuary Windows PC. Take a photo of every screen and label you record. Save the photos in a shared folder named with today's date.
 
-## 1. ETC Ion: software and identity
+## 0. The sanctuary Windows PC, ETCnomad, Gadget II and wireless DMX
+
+| ☐ | Item | How to find it | Record |
+|---|---|---|---|
+| ☐ | PC make/model, Windows edition and version | Settings → System → About | |
+| ☐ | Eos (ETCnomad) software version | In Eos: **Browser → Help → About**. Write it exactly, e.g. `3.2.12`. 3.2 or later means the simple `127.0.0.1` connection is documented. | |
+| ☐ | ETCnomad license key: model / output count, and which USB port it uses | Label on the key; the Eos About screen | |
+| ☐ | Show file name, last backup, and where | Top of Eos's main display; ask the lighting lead. **Back it up to USB today** (File → Save As). | |
+| ☐ | How Eos is started (desktop icon, starts automatically?) and who normally starts it | Ask; look in Start → Startup apps | |
+| ☐ | Gadget II: serial/firmware, USB port, which DMX port feeds what (port 1 → ?, port 2 → ?) | Label; Eos Patch/Output displays; follow the cables. **Don't unplug anything.** | |
+| ☐ | Wireless DMX: make/model of the transmitter and each receiver, and where each receiver is | Labels; photo of each | |
+| ☐ | Wireless DMX: what receivers do when they lose signal (hold last look? for how long? go dark?) | The manual (search the model number), or the installer. Testing it is in the [SceneStation worksheet](SCENESTATION_WORKSHEET.md) part D. | |
+| ☐ | Is the **Ion console** still used? If so: is it on the same network, and is it in the **same Eos system** as the PC (primary/backup/client)? | Ask the lighting lead. In Eos: Browser → Network / Displays. This decides which Eos Sanctuary Light should talk to. | |
+| ☐ | Does the PC have one monitor or two? A touchscreen? | Look | |
+| ☐ | Windows user that runs Eos; does it sign in automatically? Is there a password? | Ask; restart once if allowed | |
+| ☐ | Who manages Windows Update/antivirus on this PC (church IT, a contractor, nobody)? | Ask | |
+
+## 1. ETC Ion console (only if it is still used)
 
 | ☐ | Item | How to find it | Record |
 |---|---|---|---|
@@ -26,7 +43,7 @@ Find these in the Ion's network settings. On Eos 2.x–3.2 they're in the **ECU 
 | ☐ | Interface protocols turned on (sACN, Net3, Art-Net, "UDP Strings & OSC", "OSC TCP", "Third Party OSC") | |
 | ☐ | Setup → System → Show Control → OSC: are **OSC RX** and **OSC TX** on? Any OSC ports listed? | |
 
-## 3. The booth Mac's network
+## 3. Network (only if Eos runs on a different computer from Sanctuary Light)
 
 | ☐ | Item | How | Record |
 |---|---|---|---|
@@ -78,7 +95,8 @@ For each **type** of fixture (not each unit), photograph the label and record:
 |---|---|---|---|---|---|
 | ☐ | Pathway Pathport (each unit) | | | | |
 | ☐ | ENTTEC ODE Mk3 | | | | |
-| ☐ | ETC Gadget II (which computer is it plugged into? Is it used?) | | — | | |
+| ☐ | ETC Gadget II (sanctuary PC, USB) | | — | | |
+| ☐ | Wireless DMX transmitter / receivers | | — | | |
 | ☐ | Dimmer racks / relay panels | | | | |
 
 ## 7. SceneStation
@@ -97,10 +115,10 @@ Detailed SceneStation behavior is in the [SceneStation worksheet](SCENESTATION_W
 
 ## Checkpoint
 
-☐ Ion show file backed up to USB today
-☐ Eos version and Ion IP recorded
+☐ Eos show file backed up to USB today
+☐ Eos version recorded (and whether it runs on the sanctuary PC, the Ion, or both)
+☐ Gadget II ports and wireless DMX make/model recorded
 ☐ Patch copy obtained (file, network read, or photos)
 ☐ Relay and utility channels identified
-☐ Mac is on the same network as the Ion
 
 Then continue with [First-day testing](FIRST_DAY_TESTING.md).

@@ -31,7 +31,7 @@ export function SecuritySettings() {
         <li>The app always starts in Offline Simulation. Live mode is never restored automatically.</li>
         <li>Switching modes, disconnecting or closing the app never sends a blackout or release.</li>
         <li>Monitor mode can only send ping and read-only data queries; this is enforced at the network layer.</li>
-        <li>Mark relay/utility channels as <em>Protected</em> in the Patch tab. Architectural (SceneStation) zones should not be in this app's patch unless the Ion already controls them.</li>
+        <li>Mark relay/utility channels as <em>Protected</em> in the Patch tab. Architectural (SceneStation) zones should not be in this app's patch unless Eos already controls them.</li>
       </ul>
       <SaveBar dirty={dirty} saving={saving} onSave={() => void save()} onRevert={revert} />
 

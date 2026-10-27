@@ -10,8 +10,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-latest runs on Apple Silicon (arm64) — the sanctuary Mac's platform.
-        os: [ubuntu-latest, macos-latest]
+        # windows-latest is the primary deployment (the sanctuary PC runs Windows 11 + ETCnomad).
+        # macos-latest runs on Apple Silicon (arm64), the secondary Mac deployment.
+        os: [windows-latest, ubuntu-latest, macos-latest]
         node: [22]
     runs-on: ${{ matrix.os }}
     steps:
@@ -49,3 +50,52 @@ jobs:
           kill "$SERVER_PID"
           cat "$RUNNER_TEMP/server.log"
           ls "$RUNNER_TEMP/data/backups" | grep -q '^daily-'
+      - name: Windows deployment smoke test
+        if: runner.os == 'Windows'
+        # Windows PowerShell 5.1: what the sanctuary PC runs the scripts with.
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # 1. Every script parses, and stays ASCII (5.1 reads BOM-less files as ANSI).
+          foreach ($f in Get-ChildItem deploy\windows\*.ps1) {
+            $errs = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errs)
+            if ($errs) { $errs | ForEach-Object { Write-Host "$($f.Name): $_" }; throw "parse errors in $($f.Name)" }
+            if ([System.IO.File]::ReadAllBytes($f.FullName) | Where-Object { $_ -gt 127 }) { throw "$($f.Name) contains non-ASCII characters" }
+          }
+          # 2. The installer's checks and scheduled-task definition (changes nothing).
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\install.ps1 -DryRun
+          if ($LASTEXITCODE -ne 0) { throw 'install.ps1 -DryRun failed' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\install.ps1 -DryRun -Lan -Kiosk -OpenAtLogin
+          if ($LASTEXITCODE -ne 0) { throw 'install.ps1 -DryRun -Lan failed' }
+          # 3. Start the real supervisor the way the scheduled task does.
+          . .\deploy\windows\common.ps1
+          $node = (Get-Command node.exe).Source
+          $sup = Start-Process powershell.exe -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'deploy\windows\run-server.ps1', '-Node', "`"$node`"", '-Port', '4799', '-RestartDelaySeconds', '2')
+          $h = $null; for ($i = 0; $i -lt 60 -and -not $h; $i++) { Start-Sleep 1; $h = Get-Health 4799 }
+          if (-not $h) { Get-Content "$($script:LogDir)\server.log"; throw 'server did not start' }
+          $h | ConvertTo-Json -Compress
+          if ($h.mode -ne 'offline') { throw "expected offline, got $($h.mode)" }
+          if ($h.platform -ne 'win32-x64') { throw "expected win32-x64, got $($h.platform)" }
+          if ((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:4799/).Content -notmatch '<div id="root">') { throw 'interface not served' }
+          $listen = @(Get-NetTCPConnection -State Listen -LocalPort 4799 | Select-Object -ExpandProperty LocalAddress -Unique)
+          if ($listen -ne '127.0.0.1') { throw "expected 127.0.0.1 only, got $($listen -join ',')" }
+          # 4. Crash recovery: kill the server; the supervisor must bring it back, still offline.
+          $before = @(Get-SanctuaryServerProcesses)
+          if ($before.Count -ne 1) { throw "expected 1 server process, found $($before.Count)" }
+          Stop-Process -Id $before[0].ProcessId -Force
+          Start-Sleep 3
+          $h = $null; for ($i = 0; $i -lt 60 -and -not $h; $i++) { Start-Sleep 1; $h = Get-Health 4799 }
+          if (-not $h) { Get-Content "$($script:LogDir)\server.log"; throw 'server did not come back after a crash' }
+          $after = @(Get-SanctuaryServerProcesses)
+          if ($after[0].ProcessId -eq $before[0].ProcessId) { throw 'server was not restarted' }
+          if ($h.mode -ne 'offline') { throw "after restart expected offline, got $($h.mode)" }
+          Select-String -Path "$($script:LogDir)\server.log" -Pattern 'restarting in' | Select-Object -First 1
+          # 5. The read-only check runs cleanly against the running server.
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\check-windows.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'check-windows.ps1 failed' }
+          # 6. Clean up; daily backup was written to %LOCALAPPDATA%.
+          Stop-Process -Id $sup.Id -Force
+          Get-SanctuaryServerProcesses | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+          if (-not (Get-ChildItem "$($script:DataDir)\backups" -Filter 'daily-*')) { throw 'no daily backup' }
+          Get-Content "$($script:LogDir)\server.log" -Tail 30

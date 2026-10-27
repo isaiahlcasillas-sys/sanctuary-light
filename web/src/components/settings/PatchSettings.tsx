@@ -75,7 +75,7 @@ export function PatchSettings() {
   return (
     <div>
       <h4>Fixture patch</h4>
-      <p className="hint"><strong>Channel</strong> = Eos channel number (what you type on the Ion). <strong>Universe/Address</strong> = DMX, informational only — the Ion's patch is authoritative. Rows marked as samples were guessed from the preliminary channel groupings; replace them with your real patch.</p>
+      <p className="hint"><strong>Channel</strong> = Eos channel number (what you type in Eos). <strong>Universe/Address</strong> = DMX, informational only — Eos's patch is authoritative. Rows marked as samples were guessed from the preliminary channel groupings; replace them with your real patch.</p>
       <div className="row wrap">
         <input className="input grow" placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter fixtures" />
         <input ref={fileRef} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); e.target.value = ''; }} />
@@ -103,7 +103,7 @@ export function PatchSettings() {
       {sync && (
         <div className="card">
           <strong>Read from console: {sync.patch.length} patched channels, {sync.cueLists.length} cue lists</strong>
-          <div className="hint">Read-only data from the Eos third-party OSC API. Applying merges labels and DMX addresses into the draft below; nothing is written to the Ion.</div>
+          <div className="hint">Read-only data from the Eos third-party OSC API. Applying merges labels and DMX addresses into the draft below; nothing is written to Eos.</div>
           <div className="row" style={{ marginTop: 8 }}><button className="btn sm" onClick={() => setSync(undefined)}>Close</button><span className="spacer" />
             <button className="btn sm primary" disabled={!sync.patch.length} onClick={applySync}>Merge into draft</button></div>
         </div>
@@ -134,7 +134,7 @@ export function PatchSettings() {
       <Confirm open={confirmImport !== null} onOpenChange={(o) => !o && setConfirmImport(null)} danger={confirmImport === 'replace'}
         title={confirmImport === 'replace' ? 'Replace the whole patch?' : 'Merge imported fixtures?'}
         confirmLabel={confirmImport === 'replace' ? 'Replace' : 'Merge'}
-        body={<>This updates Sanctuary Light's local patch ({preview?.fixtures.length} fixtures). A backup of the current configuration is kept automatically. The Ion show file is not changed.</>}
+        body={<>This updates Sanctuary Light's local patch ({preview?.fixtures.length} fixtures). A backup of the current configuration is kept automatically. The Eos show file is not changed.</>}
         onConfirm={() => confirmImport && void applyImport(confirmImport)} />
     </div>
   );

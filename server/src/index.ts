@@ -1,6 +1,6 @@
 /**
  * Sanctuary Light local control server.
- *   Browser ⇄ (HTTP + WebSocket) ⇄ this server ⇄ (OSC) ⇄ ETC Ion / Eos
+ *   Browser ⇄ (HTTP + WebSocket) ⇄ this server ⇄ (OSC) ⇄ ETC Eos (ETCnomad or console)
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -73,7 +73,7 @@ app.put('/api/config/:section', operatorOnly, (req, res) => {
     const next = store.update(key, req.body as AppConfig[typeof key]);
     broadcast({ t: 'config', config: next });
     controller.onConfigChanged(prev);
-    controller.log('info', `Saved ${key} (local file only — the Ion show file is unchanged).`);
+    controller.log('info', `Saved ${key} (local file only — the Eos show file is unchanged).`);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: (e as Error).message });

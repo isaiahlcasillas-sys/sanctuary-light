@@ -51,9 +51,9 @@ export function ArchitectureSettings() {
       ))}
       <button className="btn sm" onClick={() => setDraft({ ...draft, stations: [...draft.stations, { id: `ss-${Date.now()}`, name: 'New station', location: '', model: '', firmware: '', dmxRole: 'unknown', dmxLine: '', lossAction: 'unknown', lossPreset: null, locksButtonsWhenConsoleActive: 'unknown', buttons: '', verified: false, verifiedBy: '', verifiedAt: null, notes: '' }] })}><Plus size={14} />Add station</button>
 
-      <h4 style={{ marginTop: 20 }}>DMX devices between the Ion and the lights</h4>
+      <h4 style={{ marginTop: 20 }}>DMX devices between Eos and the lights</h4>
       <table className="data-table">
-        <thead><tr><th>Device</th><th>When the Ion stops</th><th>Feeds lines</th><th>Verified</th><th>Notes</th><th /></tr></thead>
+        <thead><tr><th>Device</th><th>When Eos stops</th><th>Feeds lines</th><th>Verified</th><th>Notes</th><th /></tr></thead>
         <tbody>
           {draft.upstream.map((u) => (
             <tr key={u.id}>

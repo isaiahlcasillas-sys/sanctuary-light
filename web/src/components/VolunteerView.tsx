@@ -26,7 +26,7 @@ export function VolunteerView() {
         <SubmasterBank volunteer />
         <div className="help">
           <div className="row" style={{ marginBottom: 6 }}><HelpCircle size={16} /><strong>If something looks wrong</strong></div>
-          The <strong>ETC Ion console</strong> in the booth is always in charge and can override anything here. Ask the lighting lead, or use the Ion's normal controls.
+          The <strong>ETC Eos lighting console</strong> in the booth is always in charge and can override anything here. Ask the lighting lead, or use Eos's normal controls.
           Closing this screen never turns the lights off.
         </div>
       </div>

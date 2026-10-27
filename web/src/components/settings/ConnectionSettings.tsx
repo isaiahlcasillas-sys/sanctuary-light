@@ -29,14 +29,14 @@ export function ConnectionSettings({ onOpenWizard }: { onOpenWizard?(): void }) 
     <div>
       <div className="row">
         <h4 className="grow">Console connection</h4>
-        {onOpenWizard && <button className="btn sm primary" onClick={onOpenWizard}><Wand2 size={14} />Ion Setup Wizard</button>}
+        {onOpenWizard && <button className="btn sm primary" onClick={onOpenWizard}><Wand2 size={14} />Eos Setup Wizard</button>}
       </div>
-      <p className="hint">Sanctuary Light talks to the Ion using ETC's documented OSC interface. The Ion keeps its patch, cues and DMX output. Which ports exist depends on the Eos version, so set the version first.</p>
+      <p className="hint">Sanctuary Light talks to Eos using ETC's documented OSC interface. Eos keeps its patch, cues and DMX output. Which ports exist depends on the Eos version, so set the version first.</p>
       <div className="form-grid">
-        <label className="field"><span>Eos software version (from the Ion's About screen)</span>
+        <label className="field"><span>Eos software version (from Eos's About screen)</span>
           <input className="input" placeholder="e.g. 2.9.3 or 3.2.12" value={c.eosVersion} onChange={(e) => set({ eosVersion: e.target.value.trim() })} />
         </label>
-        <label className="field"><span>Ion IP address</span><input className="input" placeholder="e.g. 10.101.100.101" value={c.consoleIp} onChange={(e) => set({ consoleIp: e.target.value.trim() })} /></label>
+        <label className="field"><span>Eos computer IP address (127.0.0.1 = Eos on this PC)</span><input className="input" placeholder="127.0.0.1 or e.g. 10.101.100.101" value={c.consoleIp} onChange={(e) => set({ consoleIp: e.target.value.trim() })} /></label>
         <label className="field"><span>Transport</span>
           <select className="select" value={c.transport} onChange={(e) => set({ transport: e.target.value as OscTransport })}>
             {TRANSPORTS.map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}

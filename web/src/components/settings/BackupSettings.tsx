@@ -18,7 +18,7 @@ export function BackupSettings() {
   return (
     <div>
       <h4>Backup &amp; restore</h4>
-      <p className="hint">Backups contain Sanctuary Light's layout, patch, groups, looks, cue labels and settings. They never include or modify the Ion show file. A copy is also saved automatically in <code>data/backups/</code> every time anything is saved.</p>
+      <p className="hint">Backups contain Sanctuary Light's layout, patch, groups, looks, cue labels and settings. They never include or modify the Eos show file. A copy is also saved automatically in <code>data/backups/</code> every time anything is saved.</p>
       <div className="row wrap">
         <button className="btn" onClick={download}><Download size={16} />Download backup</button>
         <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={async (e) => {
@@ -30,7 +30,7 @@ export function BackupSettings() {
         <button className="btn danger" onClick={() => setReset(true)}><RotateCcw size={16} />Reset to sample configuration</button>
       </div>
       <Confirm open={restore !== null} onOpenChange={(o) => !o && setRestore(null)} danger title="Restore this backup?" confirmLabel="Restore"
-        body="This replaces the current layout, patch, looks and settings in Sanctuary Light. The current configuration is backed up first. The Ion is not affected."
+        body="This replaces the current layout, patch, looks and settings in Sanctuary Light. The current configuration is backed up first. Eos is not affected."
         onConfirm={async () => {
           try { await api.post('/api/restore', { confirm: true, backup: restore }); toast('info', 'Backup restored.'); }
           catch (e) { toast('error', (e as Error).message); }

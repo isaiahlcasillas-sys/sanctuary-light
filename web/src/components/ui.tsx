@@ -74,7 +74,7 @@ export function Confirm({ open, onOpenChange, title, body, confirmLabel, danger,
 
 const SOURCE_TEXT: Record<ValueSource, { cls: string; label: string; tip: string }> = {
   simulated: { cls: 'sim', label: 'Simulated', tip: 'Preview only. Nothing was sent to the console.' },
-  commanded: { cls: 'commanded', label: 'Commanded', tip: 'Sent to the Ion. Not confirmed — Eos does not report channel levels back.' },
+  commanded: { cls: 'commanded', label: 'Commanded', tip: 'Sent to Eos. Not confirmed — Eos does not report channel levels back.' },
   confirmed: { cls: 'confirmed', label: 'Console', tip: 'Reported by the console.' },
 };
 

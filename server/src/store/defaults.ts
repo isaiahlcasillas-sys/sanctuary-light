@@ -3,7 +3,7 @@
  *
  * EVERYTHING here is a placeholder built from the preliminary channel groupings.
  * Fixture types per channel, DMX addresses, Eos groups, cues and submasters are NOT
- * read from the real Ion. Replace via Settings → Patch (CSV/JSON import or console sync).
+ * read from the real Eos. Replace via Settings → Patch (CSV/JSON import or console sync).
  */
 import { defaultArchitecture } from '@sanctuary/shared';
 import type {
@@ -22,7 +22,7 @@ export const DEFAULT_PROFILES: FixtureProfile[] = [
     id: 'stagelight-par-rgbw', name: 'LED PAR RGBW (Monoprice Stage Right)', manufacturer: 'Monoprice',
     kind: 'led-par', capabilities: ['intensity', 'rgb', 'white'],
     eosParams: { red: 'Red', green: 'Green', blue: 'Blue', white: 'White' }, verified: false,
-    notes: 'Check the Eos library type the Ion uses for these PARs; parameter names must match.',
+    notes: 'Check the Eos library type Eos uses for these PARs; parameter names must match.',
   },
   {
     id: 'chauvet-colorband-h9', name: 'COLORband H9 USB', manufacturer: 'Chauvet DJ',
@@ -188,7 +188,9 @@ export function defaultConfig(): AppConfig {
       masterCueList: 1,
       commissioning: defaultCommissioning(),
       connection: {
-        consoleIp: '',
+        // Primary deployment: Eos (ETCnomad) on the same Windows PC. Connecting still requires a
+        // confirmed Eos version and an operator choosing Monitor or Live.
+        consoleIp: '127.0.0.1',
         // Most compatible TCP option (Eos 2.x and 3.x). The Setup Wizard switches to
         // 3037 / SLIP on Eos 3.1+ once the version is confirmed.
         transport: 'tcp-1.0',

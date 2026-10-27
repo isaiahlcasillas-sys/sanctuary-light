@@ -3,17 +3,18 @@
 ## Today
 
 ```
- Volunteer / operator browser (Mac in the sanctuary, optional tablets)
+ Volunteer / operator browser (Edge app window on the sanctuary Windows PC; optional tablets)
         │  HTTP + WebSocket (localhost by default)
         ▼
- Sanctuary Light server (Node, launchd LaunchAgent on the Mac)
+ Sanctuary Light server (Node; Windows: scheduled task + supervisor; Mac: launchd LaunchAgent)
    ├─ Controller: roles, safety rules, simulation, modes (offline / monitor / live)
    ├─ Group verifier: "Group N" only when the console's list matches exactly
-   ├─ Config store: local JSON + per-save and daily backups  (never the Ion show file)
-   └─ Eos OSC engine (TCP 3032 or 3037 / UDP)    ← the only network path to lighting
-        │
+   ├─ Config store: local JSON + per-save and daily backups  (never the Eos show file)
+   └─ Eos OSC engine (TCP 3032 or 3037 / UDP)    ← the only path to lighting
+        │  127.0.0.1 when Eos runs on the same PC (primary), or the console's IP
         ▼
- ETC Ion (Eos)  ── owns patch, cues, submasters, DMX output ──►  nodes  ──►  DMX lines  ──►  fixtures
+ ETC Eos: ETCnomad on the same PC, or a console (Ion)
+   ── owns patch, cues, submasters, DMX output ──►  Gadget II (USB) / nodes  ──►  wireless DMX / DMX lines  ──►  fixtures
                                                                            ▲
                          SceneStation wall stations (in-line backup or separate lines) ┘
                          Not connected to Sanctuary Light in any way.

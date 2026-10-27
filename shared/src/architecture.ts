@@ -28,7 +28,7 @@ export type SceneStationDmxRole =
   | 'output-only'
   /** Wireless remote of another station; no DMX wiring of its own. */
   | 'wireless-remote'
-  /** Drives a universe the Ion does not feed. */
+  /** Drives a universe Eos does not feed. */
   | 'separate-universe';
 
 export type SceneStationLossAction =
@@ -60,12 +60,12 @@ export interface SceneStationRecord {
 
 export type UpstreamLossBehavior = 'unknown' | 'holds-last-look' | 'stops-output' | 'fades-out';
 
-/** A device between the Ion and the DMX lines (node, gateway, USB interface). */
+/** A device between Eos and the DMX lines (node, gateway, USB interface). */
 export interface UpstreamDevice {
   id: string;
   name: string;
   role: string;
-  /** What its DMX outputs do when the Ion stops sending. Decides whether SceneStation ever takes over. */
+  /** What its DMX outputs do when Eos stops sending. Decides whether SceneStation ever takes over. */
   lossBehavior: UpstreamLossBehavior;
   feedsLines: string;
   verified: boolean;
@@ -96,7 +96,7 @@ const DMX_ROLE_TEXT: Record<SceneStationDmxRole, string> = {
   'inline-backup': 'On the same DMX line as the console (passive while the console sends DMX)',
   'output-only': 'Set to "DMX Output Only" — always outputs, ignores the console',
   'wireless-remote': 'Wireless remote of another station (no DMX of its own)',
-  'separate-universe': 'Drives a DMX line the Ion does not feed',
+  'separate-universe': 'Drives a DMX line Eos does not feed',
 };
 
 const LOSS_TEXT: Record<SceneStationLossAction, string> = {
@@ -128,10 +128,10 @@ export function analyzeFailures(arch: ArchitecturalConfig): FailureScenario[] {
 
   out.push({
     id: 'mac-fails',
-    scenario: 'The sanctuary Mac crashes, sleeps, loses power or the app quits',
-    outcome: 'The Ion keeps running its current cue. Sanctuary Light sends nothing when it stops, and it starts again in Offline Simulation, never Live. SceneStation is unaffected because this app never talks to it.',
+    scenario: 'Sanctuary Light crashes, is quit, or its computer restarts',
+    outcome: 'Eos keeps running its current cue. Sanctuary Light sends nothing when it stops, and it starts again in Offline Simulation, never Live (on Windows it restarts itself within about 10 seconds after a crash). SceneStation is unaffected because this app never talks to it. If Eos runs on the same PC and the whole PC goes down, Eos stops too: see the next row.',
     confidence: 'by-design',
-    action: 'Operate from the Ion. Restart the Mac when convenient; re-arm Live mode deliberately.',
+    action: 'Operate from Eos directly. Re-open Sanctuary Light from its desktop icon and re-arm Live mode deliberately.',
   });
 
   let ionOutcome: string;
@@ -142,10 +142,10 @@ export function analyzeFailures(arch: ArchitecturalConfig): FailureScenario[] {
       : 'No SceneStation is wired in-line with the console, so none will take over. Lights do whatever the DMX nodes do when data stops.';
     ionConfidence = unknownRole.length ? 'needs-audit' : 'documented';
   } else if (upstreamUnknown.length) {
-    ionOutcome = `Depends on the DMX nodes (${upstreamUnknown.map((u) => u.name).join(', ')}). If a node keeps outputting its last look when the Ion stops, the in-line SceneStation never sees DMX disappear and does NOT take over. If the node stops outputting, the station takes over and ${wired.map((s) => `${s.name} ${describeLossAction(s.lossAction, s.lossPreset)}`).join('; ')}.`;
+    ionOutcome = `Depends on the DMX nodes (${upstreamUnknown.map((u) => u.name).join(', ')}). If a node keeps outputting its last look when Eos stops, the in-line SceneStation never sees DMX disappear and does NOT take over. If the node stops outputting, the station takes over and ${wired.map((s) => `${s.name} ${describeLossAction(s.lossAction, s.lossPreset)}`).join('; ')}.`;
     ionConfidence = 'needs-audit';
   } else if (upstreamHold.length) {
-    ionOutcome = `${upstreamHold.map((u) => u.name).join(', ')} hold${upstreamHold.length === 1 ? 's' : ''} the last look, so in-line SceneStations stay passive: lights freeze in the Ion's last state and wall buttons may not change them.`;
+    ionOutcome = `${upstreamHold.map((u) => u.name).join(', ')} hold${upstreamHold.length === 1 ? 's' : ''} the last look, so in-line SceneStations stay passive: lights freeze in Eos's last state and wall buttons may not change them.`;
     ionConfidence = 'documented';
   } else {
     ionOutcome = `DMX stops, so each in-line SceneStation takes over (manual: "When DMX Output is Restored"): ${wired.map((s) => `${s.name} ${describeLossAction(s.lossAction, s.lossPreset)}`).join('; ')}.`;
@@ -153,7 +153,7 @@ export function analyzeFailures(arch: ArchitecturalConfig): FailureScenario[] {
   }
   out.push({
     id: 'ion-fails',
-    scenario: 'The Ion fails, is shut down, or its show is closed',
+    scenario: 'Eos stops: Eos is closed, crashes, or the PC running Eos (ETCnomad) shuts down, restarts or loses power',
     outcome: ionOutcome,
     confidence: ionConfidence,
     action: 'Know this before Sunday: test it once outside services and record the result in the audit.',
@@ -161,12 +161,12 @@ export function analyzeFailures(arch: ArchitecturalConfig): FailureScenario[] {
 
   out.push({
     id: 'dmx-stops',
-    scenario: 'A DMX cable, node or network link fails between the Ion and the lights',
+    scenario: 'A DMX cable, node or network link fails between Eos and the lights',
     outcome: wired.length
       ? 'Only fixtures downstream of the break are affected. An in-line SceneStation takes over only if it is downstream of the break and sees DMX disappear on its line. Dimmers/fixtures on lines without a station follow their own loss-of-data setting.'
       : 'Fixtures follow their own (or their dimmer\'s) loss-of-data setting. This varies by device and must be checked.',
     confidence: 'needs-audit',
-    action: 'Use the Ion\'s Patch/Output displays and the node indicators to find the break.',
+    action: 'Use Eos\'s Patch/Output displays and the node indicators to find the break.',
   });
 
   const pressOutcome: string[] = [];
@@ -174,9 +174,9 @@ export function analyzeFailures(arch: ArchitecturalConfig): FailureScenario[] {
     pressOutcome.push(`In-line stations (${wired.map((s) => s.name).join(', ')}) are passive while the console sends DMX: per the manual the console has full control, so a button press does not change those lights${wired.some((s) => s.locksButtonsWhenConsoleActive === 'yes') ? ' (some are set to lock their buttons, as a visible cue)' : ''}.`);
   }
   if (outputOnly.length) {
-    pressOutcome.push(`HAZARD: ${outputOnly.map((s) => s.name).join(', ')} ${outputOnly.length === 1 ? 'is' : 'are'} set to "DMX Output Only". If ${outputOnly.length === 1 ? 'it shares' : 'they share'} a DMX line with the Ion's output, two sources drive the same line and the result is unpredictable.`);
+    pressOutcome.push(`HAZARD: ${outputOnly.map((s) => s.name).join(', ')} ${outputOnly.length === 1 ? 'is' : 'are'} set to "DMX Output Only". If ${outputOnly.length === 1 ? 'it shares' : 'they share'} a DMX line with Eos's output, two sources drive the same line and the result is unpredictable.`);
   }
-  if (stations.some((s) => s.dmxRole === 'separate-universe')) pressOutcome.push('Stations on lines the Ion does not feed work normally and change their own lights at any time.');
+  if (stations.some((s) => s.dmxRole === 'separate-universe')) pressOutcome.push('Stations on lines Eos does not feed work normally and change their own lights at any time.');
   if (unknownRole.length) pressOutcome.push(`Unknown for ${unknownRole.map((s) => s.name).join(', ')} until the wiring is checked.`);
   out.push({
     id: 'wall-button',
@@ -207,10 +207,11 @@ export function defaultArchitecture(): ArchitecturalConfig {
     upstream: [
       { id: 'up-pathport', name: 'Pathway Pathport', role: 'Network-to-DMX node', lossBehavior: 'unknown', feedsLines: '', verified: false, notes: 'Check the port\'s loss-of-data behavior in Pathscape.' },
       { id: 'up-ode', name: 'ENTTEC ODE Mk3', role: 'Network-to-DMX node', lossBehavior: 'unknown', feedsLines: '', verified: false, notes: 'Check its loss-of-data / hold setting in the ENTTEC web interface.' },
-      { id: 'up-gadget', name: 'ETC Gadget II', role: 'USB-to-DMX interface (2 universes)', lossBehavior: 'unknown', feedsLines: '', verified: false, notes: 'Which computer is it plugged into, and is it in use at all?' },
+      { id: 'up-gadget', name: 'ETC Gadget II', role: 'USB-to-DMX interface on the Eos (ETCnomad) PC, 2 DMX ports', lossBehavior: 'unknown', feedsLines: '', verified: false, notes: 'Driven by Eos on the sanctuary Windows PC. Record which DMX lines/transmitters it feeds and what its outputs do when Eos stops or the PC restarts.' },
+      { id: 'up-wireless', name: 'Wireless DMX', role: 'Wireless DMX transmitter and receivers', lossBehavior: 'unknown', feedsLines: '', verified: false, notes: 'Record make/model. Check its manual and test: when the transmitter loses DMX, do receivers hold the last look (for how long?) or stop output?' },
     ],
     auditCompletedAt: null,
     auditBy: '',
-    volunteerGuidance: 'The wall buttons (SceneStation) control the room when the lighting console is off. During services the ETC Ion in the booth is in charge. Sanctuary Light does not control the wall buttons. If the house lights do not respond, ask the lighting lead.',
+    volunteerGuidance: 'The wall buttons (SceneStation) control the room when the lighting console is off. During services the booth lighting computer (ETC Eos, operated through Sanctuary Light) is in charge. Do not close the Eos window on that computer. Sanctuary Light does not control the wall buttons. If the house lights do not respond, ask the lighting lead.',
   };
 }
