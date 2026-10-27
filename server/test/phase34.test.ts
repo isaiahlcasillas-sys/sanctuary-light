@@ -8,8 +8,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  buildImportPlan, compareShow, defaultImportOptions, firstConnectionSteps, normalizeLookApprovals, outdatedWarnings,
-  readState, volunteerCanUseLook, type AppConfig, type ConsoleSnapshot, type Look,
+  buildImportPlan, compareShow, defaultImportOptions, firstConnectionSteps, normalizeLookApprovals, normalizeSubApprovals, outdatedWarnings,
+  readState, versionMatches, volunteerCanUseLook, type AppConfig, type ConsoleSnapshot, type Look,
 } from '@sanctuary/shared';
 import { Controller } from '../src/controller';
 import { parseShowFile } from '../src/import';
@@ -104,6 +104,12 @@ describe('compareShow (pure)', () => {
     expect(readState(snapshot({ connected: false }))).toBe('offline');
   });
 
+  it('compares versions by whole parts', () => {
+    expect(versionMatches('3.2.12', '3.2.12.0')).toBe(true);
+    expect(versionMatches('3.1', '3.12.0')).toBe(false);
+    expect(versionMatches('', '3.3.10')).toBe(false);
+  });
+
   it('marks the FAKE simulator so it is never mistaken for real evidence', () => {
     expect(compareShow(cfg, asSnapshot(full, { showName: 'FAKE SHOW (not a real console)' })).simulatedConsole).toBe(true);
     expect(compareShow(cfg, asSnapshot(full)).simulatedConsole).toBe(false);
@@ -157,9 +163,9 @@ describe('Show Verification against the FAKE console (simulated)', () => {
   });
 
   it('warns when the show is edited or another show is loaded after verification', async () => {
-    const { c } = await connected();
+    const { c, store } = await connected();
     c.startVerification();
-    await until(() => c.verificationReport().state === 'complete');
+    await until(() => store.get().verification !== null, 8000);
     expect(c.status().showWarnings).toEqual([]);
     const edited = consoleShowFrom(cfg0);
     edited.patch[0].label = 'Edited in Eos';
@@ -169,6 +175,19 @@ describe('Show Verification against the FAKE console (simulated)', () => {
     eos.setShow({ ...edited, name: 'Christmas Eve' }, 'load');
     await until(() => c.status().showWarnings.some((w) => /Christmas Eve/.test(w)));
     eos.setShow(consoleShowFrom(cfg0), 'load');
+    c.shutdown();
+  });
+
+  it('saves the record by itself (no screen polling) and survives a repeated read', async () => {
+    const { store, c } = await connected();
+    c.startVerification();
+    c.startVerification(); // pressed twice: replies to the first read must not inflate the second
+    await until(() => store.get().verification !== null, 8000);
+    const r = c.verificationReport();
+    expect(r.state).toBe('complete');
+    expect(r.summary['missing-in-eos']).toBe(0);
+    expect(r.progress!.patch.received).toBe(r.progress!.patch.expected);
+    expect(store.get().verification!.summary.unknown).toBe(1); // only "Loaded show"; groups were waited for
     c.shutdown();
   });
 
@@ -197,6 +216,17 @@ describe('Volunteer approval', () => {
     expect(normalizeLookApprovals([approved], [{ ...approved, name: 'Hello' }]).looks[0].approval).not.toBeNull();
   });
 
+  it('keeps approvals server-owned when looks or subs are saved', () => {
+    const approved = { ...cueLook, approval: { at: 1, note: 'x' } };
+    // A new look can't arrive already approved.
+    expect(normalizeLookApprovals([], [approved]).looks[0].approval).toBeNull();
+    // A stale screen can't re-approve (or un-approve) a look.
+    expect(normalizeLookApprovals([cueLook], [approved]).looks[0].approval).toBeNull();
+    expect(normalizeLookApprovals([approved], [{ ...approved, approval: null }]).looks[0].approval).toEqual({ at: 1, note: 'x' });
+    const subs = normalizeSubApprovals([{ sub: 1, label: 'A', volunteerVisible: false, protected: false, fromEos: true }], [{ sub: 1, label: 'A', volunteerVisible: true, protected: false, approval: { at: 1, note: 'x' } }]);
+    expect(subs[0]).toMatchObject({ fromEos: true, approval: null });
+  });
+
   it('refuses to save an unapproved Eos look as volunteer-visible, and imported subs too', () => {
     const store = new ConfigStore(tmp());
     expect(() => store.update('looks', [{ ...cueLook, volunteerVisible: true }])).toThrow(/approve/);
@@ -214,6 +244,7 @@ describe('Volunteer approval', () => {
     expect((await c.execute({ kind: 'fireLook', lookId: 'l2' }, 'volunteer')).ok).toBe(true);
     expect((await c.execute({ kind: 'fireCue', list: 1, cue: '2' }, 'volunteer')).message).toMatch(/hasn't been approved/);
     expect((await c.execute({ kind: 'fireCue', list: 1, cue: '5' }, 'volunteer')).ok).toBe(true);
+    expect((await c.execute({ kind: 'fireCue', list: 1, cue: '5.0' }, 'volunteer')).ok).toBe(true);
     expect((await c.execute({ kind: 'fireCue', list: 1, cue: '2' }, 'operator')).ok).toBe(true);
     expect((await c.execute({ kind: 'setSub', sub: 9, value: 50 }, 'volunteer')).delivery).toBe('blocked');
     c.shutdown();
@@ -223,6 +254,15 @@ describe('Volunteer approval', () => {
     const cfg = importedConfig();
     expect(cfg.looks.every((l) => !l.volunteerVisible && !l.approval)).toBe(true);
     expect(cfg.submasters.every((s) => s.fromEos && !s.volunteerVisible && !s.approval)).toBe(true);
+  });
+
+  it('marks re-imported submasters as from Eos even when nothing changed', () => {
+    const show = parseShowFile(fs.readFileSync(path.join(__dirname, 'fixtures', 'eos-import', 'eos-export.csv')), 'x.csv');
+    const local = { ...defaultConfig(), submasters: [{ sub: 1, label: 'House Lights', volunteerVisible: true, protected: false }] };
+    for (const conflicts of ['use-imported', 'keep-local'] as const) {
+      const plan = buildImportPlan(show, local, { ...defaultImportOptions(show, local), conflicts });
+      expect(plan.config.submasters.find((s) => s.sub === 1)).toMatchObject({ fromEos: true });
+    }
   });
 
   it('keeps existing volunteer looks working after the update, marked for review', () => {
@@ -258,6 +298,14 @@ describe('Imported identities and arranging', () => {
     expect(f70.profileId).toBe('generic');
     expect(f70.protected).toBe(true);                // protections are always kept
     expect(plan.config.fixtures.every((f) => f.unplaced)).toBe(true); // sample positions not inherited
+  });
+
+  it('adopts an Eos label added later to a group that had none (unless renamed here)', () => {
+    const cfg = importedConfig();
+    cfg.groups.push({ id: 'grp-eos-5', name: 'Group 5', color: '#fff', channels: [1], eosGroup: 5, volunteerVisible: false, eosLabel: '' });
+    const show = parseShowFile(Buffer.from('START_TARGETS\nTARGET_TYPE_AS_TEXT,TARGET_ID,LABEL\nGroup,5,Choir\nEND_TARGETS\nSTART_LEVELS\nTARGET_TYPE_AS_TEXT,TARGET_ID,CHANNEL,PARAMETER_TYPE_AS_TEXT\nGroup,5,1,Intensity\nEND_LEVELS\n'), 'g.csv');
+    const plan = buildImportPlan(show, cfg, { ...defaultImportOptions(show, cfg), conflicts: 'use-imported' });
+    expect(plan.config.groups.find((g) => g.eosGroup === 5)).toMatchObject({ name: 'Choir', eosLabel: 'Choir' });
   });
 
   it('puts unplaced fixtures in a holding area below the stage, not on it', () => {

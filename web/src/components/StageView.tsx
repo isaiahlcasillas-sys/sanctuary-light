@@ -148,7 +148,7 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
   };
 
   const saveLayout = () => void useApp.getState().saveLayout();
-  const unplacedCount = fixtures.filter((f) => f.unplaced).length;
+  const unplacedCount = allFixtures.filter((f) => f.unplaced).length;
   const singleSel = editLayout && selection.length === 1 ? fixtures.find((f) => f.channel === selection[0]) : undefined;
   const groupChips = (config?.groups ?? []).filter((g) => !compact || g.volunteerVisible);
   const anySource = levels ? (Object.values(levels.sources).includes('commanded') ? 'commanded' : 'simulated') : 'simulated';

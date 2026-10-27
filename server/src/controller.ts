@@ -8,7 +8,7 @@
  *   5. reports back exactly which of those happened.
  */
 import {
-  MODE_INFO, clamp, compareShow, eosCapabilities, fingerprint, outdatedWarnings, parseEosVersion, volunteerCanUseLook, volunteerCanUseSub,
+  MODE_INFO, clamp, compareShow, eosCapabilities, fingerprint, outdatedWarnings, parseEosVersion, readState, volunteerCanUseLook, volunteerCanUseSub,
   type ConsoleSnapshot, type FirstConnectionRecord, type VerificationReport,
   type CommissioningRecord, type GoBackStatus, type GroupVerification,
   type AppConfig, type Capability, type Command, type CommandResult, type CueFeedback, type FeedbackCapability,
@@ -99,6 +99,9 @@ export class Controller {
   private consoleChangedAt: number | null = null;
   /** The read whose complete result was saved as the verification record. */
   private savedReadStartedAt: number | null = null;
+  /** Entries already counted in the current read (replies are counted once each). */
+  private readKeys = { patch: new Set<string>(), lists: new Set<number>(), cues: new Map<number, Set<string>>() };
+  private verifyTimer: NodeJS.Timeout | null = null;
 
   constructor(private store: ConfigStore, private broadcast: (msg: ServerMessage) => void, private defaultPins: () => boolean) {
     this.limiter = new CommandRateLimiter(() => 1000 / this.cfg.settings.connection.maxCommandRateHz);
@@ -288,14 +291,16 @@ export class Controller {
     }
   }
 
-  private recordCommissioning(patch: Partial<CommissioningRecord>) {
+  private recordCommissioning(patch: Partial<CommissioningRecord>): boolean {
     const s = this.cfg.settings;
     try {
       const next = this.store.update('settings', { ...s, commissioning: { ...s.commissioning, ...patch } }, { backup: false });
       this.broadcast({ t: 'config', config: next });
+      return true;
     } catch (e) {
       // The command itself already went out; never report it as failed because of bookkeeping.
       this.log('warn', `Could not record commissioning result: ${(e as Error).message}`);
+      return false;
     }
   }
 
@@ -325,6 +330,7 @@ export class Controller {
     this.syncResult = null;
     this.read = null;
     this.consoleChangedAt = null;
+    if (this.verifyTimer) { clearTimeout(this.verifyTimer); this.verifyTimer = null; }
     this.seenCueFeedback = false;
     this.feedback = { activeCue: null, pendingCue: null, previousCue: null, commandLine: null, capabilities: {} };
   }
@@ -432,11 +438,16 @@ export class Controller {
         else if (ev.what === 'cuelist') r.cueLists.expected = expected;
         else if (ev.what === 'cue' && ev.list != null) r.cues[ev.list] = { received: r.cues[ev.list]?.received ?? 0, expected };
         r.lastReplyAt = Date.now();
+        this.maybeSaveVerification();
         return;
       }
       case 'patchEntry': {
         if (!this.syncResult) this.syncResult = { startedAt: Date.now(), patch: [], cueLists: [] };
-        if (this.read) { this.read.patch.received++; this.read.lastReplyAt = Date.now(); }
+        if (this.read) {
+          this.readKeys.patch.add(`${ev.channel}/${ev.part}`);
+          this.read.patch.received = this.readKeys.patch.size;
+          this.read.lastReplyAt = Date.now();
+        }
         if (ev.part > 1) break;
         const row = { channel: ev.channel, label: ev.label, manufacturer: ev.manufacturer, model: ev.model, dmx: ev.absoluteAddress ? splitAbsoluteAddress(ev.absoluteAddress) : null };
         const i = this.syncResult.patch.findIndex((p) => p.channel === ev.channel);
@@ -448,8 +459,13 @@ export class Controller {
         if (!this.syncResult) this.syncResult = { startedAt: Date.now(), patch: [], cueLists: [] };
         if (this.read) {
           this.read.lastReplyAt = Date.now();
-          if (ev.kind === 'cueListEntry') this.read.cueLists.received++;
-          else this.read.cues[ev.list] = { received: (this.read.cues[ev.list]?.received ?? 0) + 1, expected: this.read.cues[ev.list]?.expected ?? null };
+          if (ev.kind === 'cueListEntry') { this.readKeys.lists.add(ev.list); this.read.cueLists.received = this.readKeys.lists.size; }
+          else {
+            const keys = this.readKeys.cues.get(ev.list) ?? new Set<string>();
+            keys.add(`${ev.cue}/${ev.part}`);
+            this.readKeys.cues.set(ev.list, keys);
+            this.read.cues[ev.list] = { received: keys.size, expected: this.read.cues[ev.list]?.expected ?? null };
+          }
         }
         let list = this.syncResult.cueLists.find((l) => l.list === ev.list);
         if (!list) { list = { list: ev.list, label: '', cues: [] }; this.syncResult.cueLists.push(list); }
@@ -459,6 +475,7 @@ export class Controller {
       }
       default: return;
     }
+    this.maybeSaveVerification();
     this.pushStatus();
   }
 
@@ -667,7 +684,7 @@ export class Controller {
       }
       case 'fireCue': {
         // Volunteers may only fire a cue an operator has approved through a volunteer look.
-        if (role === 'volunteer' && !this.cfg.looks.some((l) => l.action.type === 'cue' && l.action.list === cmd.list && l.action.cue === cmd.cue && volunteerCanUseLook(l))) {
+        if (role === 'volunteer' && !this.cfg.looks.some((l) => l.action.type === 'cue' && l.action.list === cmd.list && Number(l.action.cue) === Number(cmd.cue) && volunteerCanUseLook(l))) {
           return { ok: false, delivery: 'blocked', message: `Cue ${cmd.list}/${cmd.cue} hasn't been approved for volunteers.` };
         }
         return this.deliver(`Cue ${cmd.list}/${cmd.cue}`, () => b.fireCue(cmd.list, cmd.cue), () => {
@@ -744,13 +761,8 @@ export class Controller {
         // Only an operator's test is recorded as a commissioning result.
         return this.testConnection(role === 'operator');
       case 'syncFromConsole': {
-        if (this.mode === 'offline' || !this.eos) return { ok: false, delivery: 'blocked', message: 'Connect in Monitor or Live mode first.' };
-        if (this.connection().state !== 'connected') return { ok: false, delivery: 'error', message: 'Console is not responding yet.' };
-        this.syncResult = { startedAt: Date.now(), patch: [], cueLists: [] };
-        this.read = { startedAt: Date.now(), lastReplyAt: null, patch: { received: 0, expected: null }, cueLists: { received: 0, expected: null }, cues: {}, truncated: false };
-        try { this.eos.requestSync(); } catch (e) { return { ok: false, delivery: 'error', message: (e as Error).message }; }
-        this.log('info', 'Requested patch and cue list data from the console (read-only).');
-        return { ok: true, delivery: 'sent', message: 'Reading patch and cue lists from the console… results appear in Settings → Patch.' };
+        const r = this.syncFromConsoleRead();
+        return r.ok ? { ...r, message: 'Reading patch and cue lists from the console… results appear in Settings → Patch.' } : r;
       }
     }
   }
@@ -773,27 +785,44 @@ export class Controller {
     };
   }
 
-  /** Compare with the console; a complete read is saved once as the verification record. */
+  /** Compare the configuration with what the console has reported (read-only). */
   verificationReport(): VerificationReport {
+    this.maybeSaveVerification();
+    return compareShow(this.cfg, this.consoleSnapshot());
+  }
+
+  /**
+   * Save the verification record once per complete read: after the patch and cue lists are in
+   * and the console has answered for every Eos group (or 5 s later, e.g. over UDP, where groups
+   * can't be read). Runs from the feedback handler, so it doesn't depend on a screen polling.
+   */
+  private maybeSaveVerification(force = false) {
+    const r = this.read;
+    if (!r || this.savedReadStartedAt === r.startedAt) return;
     const snap = this.consoleSnapshot();
-    const report = compareShow(this.cfg, snap);
-    if (report.state === 'complete' && snap.read && this.savedReadStartedAt !== snap.read.startedAt) {
-      this.savedReadStartedAt = snap.read.startedAt;
-      try {
-        const next = this.store.update('verification', {
-          at: Date.now(), showName: snap.showName, consoleVersion: snap.consoleVersion, simulatedConsole: report.simulatedConsole,
-          summary: report.summary, fingerprint: fingerprint(snap),
-        }, { backup: false });
-        this.broadcast({ t: 'config', config: next });
-        const s = report.summary;
-        this.log('info', `Show Verification: ${s.match} match, ${s.different} different, ${s['missing-in-eos']} missing in Eos, ${s['extra-in-eos']} only in Eos, ${s.unknown} unknown.${report.simulatedConsole ? ' (FAKE simulator — not evidence about the real console.)' : ''}`);
-        this.pushStatus();
-        return compareShow(this.cfg, this.consoleSnapshot());
-      } catch (e) {
-        this.log('warn', `Could not save the verification result: ${(e as Error).message}`);
+    if (readState(snap) !== 'complete') return;
+    const groupsPending = this.cfg.groups.some((g) => g.eosGroup != null && (snap.groups[g.id]?.state ?? 'unverified') === 'unverified');
+    if (groupsPending && !force) {
+      if (!this.verifyTimer) {
+        this.verifyTimer = setTimeout(() => { this.verifyTimer = null; this.maybeSaveVerification(true); }, 5000);
+        this.verifyTimer.unref?.();
       }
+      return;
     }
-    return report;
+    this.savedReadStartedAt = r.startedAt;
+    const report = compareShow(this.cfg, snap);
+    try {
+      const next = this.store.update('verification', {
+        at: Date.now(), showName: snap.showName, consoleVersion: snap.consoleVersion, simulatedConsole: report.simulatedConsole,
+        summary: report.summary, fingerprint: fingerprint(snap),
+      }, { backup: false });
+      this.broadcast({ t: 'config', config: next });
+      const s = report.summary;
+      this.log('info', `Show Verification: ${s.match} match, ${s.different} different, ${s['missing-in-eos']} missing in Eos, ${s['extra-in-eos']} only in Eos, ${s.unknown} unknown.${report.simulatedConsole ? ' (FAKE simulator — not evidence about the real console.)' : ''}`);
+      this.pushStatus();
+    } catch (e) {
+      this.log('warn', `Could not save the verification result: ${(e as Error).message}`);
+    }
   }
 
   /** Start a read-only read of patch, cue lists and groups. Sends only /eos/get queries. */
@@ -810,16 +839,18 @@ export class Controller {
     if (!this.eos.supportsThirdPartyApi) return { ok: false, delivery: 'error', message: 'Reading show data needs Eos 2.0 or later.' };
     this.syncResult = { startedAt: Date.now(), patch: [], cueLists: [] };
     this.read = { startedAt: Date.now(), lastReplyAt: null, patch: { received: 0, expected: null }, cueLists: { received: 0, expected: null }, cues: {}, truncated: false };
+    this.readKeys = { patch: new Set(), lists: new Set(), cues: new Map() };
+    if (this.verifyTimer) { clearTimeout(this.verifyTimer); this.verifyTimer = null; }
     try { this.eos.requestSync(); } catch (e) { return { ok: false, delivery: 'error', message: (e as Error).message }; }
-    this.log('info', 'Show Verification: reading patch and cue lists from the console (read-only /eos/get).');
+    this.log('info', 'Reading patch and cue lists from the console (read-only /eos/get).');
     return { ok: true, delivery: 'sent', message: 'Reading…' };
   }
 
   /** First Real Connection: operator confirmations. Local bookkeeping only. */
-  recordFirstConnection(patch: Partial<FirstConnectionRecord>) {
+  recordFirstConnection(patch: Partial<FirstConnectionRecord>): boolean {
     const c = this.cfg.settings.commissioning;
     const cur: FirstConnectionRecord = c.firstConnection ?? { showBackedUpAt: null, genuineExportConfirmedAt: null, patchReviewedAt: null, testFixture: null };
-    this.recordCommissioning({ firstConnection: { ...cur, ...patch } });
+    return this.recordCommissioning({ firstConnection: { ...cur, ...patch } });
   }
 
   private protectedBlocked(prot: Fixture[]): CommandResult {

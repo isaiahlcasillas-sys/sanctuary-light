@@ -163,6 +163,7 @@ export class EosOscEngine implements OutputEngine {
   /** Read show data via the Eos 2.x third-party API. Read-only. */
   requestSync() {
     if (!this.supportsThirdPartyApi) throw new Error('Reading patch/cue data needs Eos 2.0 or later; use CSV/JSON import instead.');
+    this.syncQueue = []; // a new read replaces any requests still queued from an earlier one
     this.queueSync([
       { address: '/eos/get/patch/count', args: [] },
       { address: '/eos/get/cuelist/count', args: [] },

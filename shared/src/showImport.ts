@@ -435,7 +435,9 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         });
       }
       // Using Eos data updates the channels; a renamed group keeps its local name.
-      out.push(useImported ? { ...fromEos, name: local.eosLabel !== undefined && local.name !== local.eosLabel ? local.name : fromEos.name } : { ...local, eosLabel: g.label });
+      // "Renamed" = the local name differs from the name the import gave it (its Eos label, or "Group N").
+      const renamed = local.eosLabel !== undefined && local.name !== (local.eosLabel || `Group ${g.number}`);
+      out.push(useImported ? { ...fromEos, name: renamed ? local.name : fromEos.name } : { ...local, eosLabel: g.label });
       if (useImported) changes.groups.updated++; else changes.groups.unchanged++;
     });
     if (replace) {
@@ -482,25 +484,30 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
   if (opts.include.submasters && show.subs.length) {
     const protectedChans = new Set(cfg.fixtures.filter((f) => f.protected).map((f) => f.channel));
     const bySub = new Map(current.submasters.map((s) => [s.sub, s]));
+    const hiddenSubs: number[] = [];
     const out: SubmasterConfig[] = replace ? [] : current.submasters.filter((s) => !show.subs.some((x) => x.number === s.sub));
     for (const s of show.subs) {
       const local = bySub.get(s.number);
       const touchesProtected = s.channels.some((c) => protectedChans.has(c));
+      // A submaster can control anything in Eos: volunteers need an operator's approval, so an
+      // unapproved one is hidden from Volunteer Mode until someone reviews it.
+      const approval = local?.approval ?? null;
+      const volunteerVisible = !!approval && (local?.volunteerVisible ?? false);
+      if (local?.volunteerVisible && !approval) hiddenSubs.push(s.number);
       const fromEos: SubmasterConfig = {
-        sub: s.number, label: s.label || `Sub ${s.number}`,
-        volunteerVisible: local?.volunteerVisible ?? false,
+        sub: s.number, label: s.label || `Sub ${s.number}`, volunteerVisible,
         protected: (local?.protected ?? false) || touchesProtected,
-        // A submaster can control anything in Eos: volunteers need an operator's approval.
-        fromEos: true, approval: local?.approval ?? null,
+        fromEos: true, approval,
       };
       if (!local) { out.push(fromEos); changes.submasters.added++; continue; }
-      if (local.label === fromEos.label && local.protected === fromEos.protected) { out.push(local); changes.submasters.unchanged++; continue; }
+      if (local.label === fromEos.label && local.protected === fromEos.protected) { out.push({ ...local, fromEos: true, volunteerVisible }); changes.submasters.unchanged++; continue; }
       if (!replace && local.label !== fromEos.label) conflicts.push({ kind: 'submaster', key: `Sub ${s.number}`, local: local.label, imported: fromEos.label, resolution: useImported ? 'used-imported' : 'kept-local' });
-      out.push(useImported ? fromEos : { ...local, protected: fromEos.protected });
+      out.push(useImported ? fromEos : { ...local, protected: fromEos.protected, fromEos: true, volunteerVisible });
       if (useImported) changes.submasters.updated++; else changes.submasters.unchanged++;
     }
     if (replace) changes.submasters.removed = current.submasters.filter((s) => !show.subs.some((x) => x.number === s.sub)).length;
     cfg.submasters = out.sort((a, b) => a.sub - b.sub);
+    if (hiddenSubs.length) notices.push({ severity: 'warning', message: `Submaster(s) ${hiddenSubs.join(', ')} are in the Eos show and will be hidden from volunteers until an operator reviews and approves them (Setup → Worship looks).` });
     const prot = cfg.submasters.filter((s) => s.protected && !bySub.get(s.sub)?.protected);
     if (prot.length) notices.push({ severity: 'info', message: `Submaster(s) ${prot.map((s) => s.sub).join(', ')} control protected channels and will be protected too.` });
   }

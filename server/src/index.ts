@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { APPROVAL_STATEMENT, assessReadiness, normalizeLookApprovals, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
+import { APPROVAL_STATEMENT, assessReadiness, normalizeLookApprovals, normalizeSubApprovals, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
 import { Auth } from './auth';
 import { parseSleepPrevention, preventSleep } from './platform';
 import { Controller } from './controller';
@@ -82,6 +82,7 @@ app.put('/api/config/:section', operatorOnly, (req, res) => {
       body = looks as AppConfig[typeof key];
       if (withdrawn.length) controller.log('warn', `Volunteer approval withdrawn because the Eos action changed: ${withdrawn.join(', ')}.`);
     }
+    if (key === 'submasters') body = normalizeSubApprovals(prev.submasters, body as AppConfig['submasters']) as AppConfig[typeof key];
     const next = store.update(key, body);
     broadcast({ t: 'config', config: next });
     controller.onConfigChanged(prev);
@@ -199,16 +200,17 @@ app.post('/api/first-connection', operatorOnly, (req, res) => {
   const b = req.body ?? {};
   const cfg = store.get();
   const now = Date.now();
+  let saved = false;
   switch (b.step) {
-    case 'backup': controller.recordFirstConnection({ showBackedUpAt: b.done ? now : null }); break;
+    case 'backup': saved = controller.recordFirstConnection({ showBackedUpAt: b.done ? now : null }); break;
     case 'genuine':
       if (b.done && !cfg.eosShow) { res.status(400).json({ error: 'Import the show from Eos first.' }); return; }
-      controller.recordFirstConnection({ genuineExportConfirmedAt: b.done ? now : null }); break;
+      saved = controller.recordFirstConnection({ genuineExportConfirmedAt: b.done ? now : null }); break;
     case 'reviewed':
       if (b.done && !cfg.eosShow) { res.status(400).json({ error: 'Import the show from Eos first.' }); return; }
-      controller.recordFirstConnection({ patchReviewedAt: b.done ? now : null }); break;
+      saved = controller.recordFirstConnection({ patchReviewedAt: b.done ? now : null }); break;
     case 'testFixture': {
-      if (b.channel == null) { controller.recordFirstConnection({ testFixture: null }); break; }
+      if (b.channel == null) { saved = controller.recordFirstConnection({ testFixture: null }); break; }
       const f = cfg.fixtures.find((x) => x.channel === Number(b.channel));
       const profile = f && cfg.profiles.find((p) => p.id === f.profileId);
       const who = String(b.approvedBy ?? '').trim();
@@ -216,11 +218,12 @@ app.post('/api/first-connection', operatorOnly, (req, res) => {
       if (f.protected || profile?.capabilities.includes('relay')) { res.status(400).json({ error: `Channel ${f.channel} is protected (relay or utility). Choose an ordinary light.` }); return; }
       if (f.area === 'house' || f.area === 'utility') { res.status(400).json({ error: `Channel ${f.channel} is a house/utility light. House lights matter to SceneStation, so choose a stage or front light for the first test.` }); return; }
       if (!who) { res.status(400).json({ error: 'Enter the name of the person who approved this test.' }); return; }
-      controller.recordFirstConnection({ testFixture: { channel: f.channel, approvedBy: who.slice(0, 80), at: now } });
+      saved = controller.recordFirstConnection({ testFixture: { channel: f.channel, approvedBy: who.slice(0, 80), at: now } });
       break;
     }
     default: res.status(400).json({ error: 'Unknown step' }); return;
   }
+  if (!saved) { res.status(500).json({ error: 'Could not save this on the PC. See the log (Settings → Traffic Log).' }); return; }
   res.json({ ok: true });
 });
 

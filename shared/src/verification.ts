@@ -82,6 +82,13 @@ export const READ_STALL_MS = 8000;
 const norm = (s: string | null | undefined) => (s ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 const dmxText = (d: { universe: number; address: number } | null | undefined) => (d ? `${d.universe}/${d.address}` : '—');
 
+/** "3.2.12" matches "3.2.12.0", but "3.1" doesn't match "3.12.0" (whole version parts). */
+export function versionMatches(configured: string, reported: string): boolean {
+  if (!configured) return false;
+  const a = configured.trim().split('.'); const b = reported.trim().split('.');
+  return a.every((part, i) => Number(part) === Number(b[i]));
+}
+
 export function isSimulatedConsole(showName: string | null) {
   return !!showName && /FAKE SHOW/i.test(showName);
 }
@@ -227,7 +234,7 @@ export function compareShow(cfg: AppConfig, s: ConsoleSnapshot): VerificationRep
   if (state !== 'offline') {
     const complete = state === 'complete';
     items.push({
-      section: 'console', key: 'Eos version', status: !s.consoleVersion ? 'unknown' : cfg.settings.connection.eosVersion && s.consoleVersion.startsWith(cfg.settings.connection.eosVersion) ? 'match' : 'different',
+      section: 'console', key: 'Eos version', status: !s.consoleVersion ? 'unknown' : versionMatches(cfg.settings.connection.eosVersion, s.consoleVersion) ? 'match' : 'different',
       local: cfg.settings.connection.eosVersion || 'not set', console: s.consoleVersion ?? 'not reported',
     });
     items.push({ section: 'console', key: 'Loaded show', status: 'unknown', local: cfg.eosShow ? cfg.eosShow.fileName : 'nothing imported', console: s.showName ?? 'not reported', detail: 'Eos reports the show name, which an export file doesn\'t contain, so this can\'t be compared directly. The patch and cue comparison below is what counts.' });

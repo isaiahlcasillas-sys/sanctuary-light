@@ -11,22 +11,35 @@ export const volunteerCanUseLook = (look: Look) => look.volunteerVisible && (!ne
 export const volunteerCanUseSub = (sub: SubmasterConfig) => sub.volunteerVisible && (!sub.fromEos || !!sub.approval);
 
 /**
- * When looks are saved: an approval belongs to one exact action, so changing the action
- * withdraws it (and hides the look from volunteers until it's approved again).
+ * When looks are saved through the ordinary settings path, approvals are owned by the server:
+ * an existing look keeps the approval it already had (a stale screen can neither re-create nor
+ * erase one), a new look starts unapproved, and changing a look's action withdraws its
+ * approval (and hides it from volunteers until it's approved again). Approving happens only
+ * through the approval action, with its acknowledgement.
  */
 export function normalizeLookApprovals(prev: Look[], next: Look[]): { looks: Look[]; withdrawn: string[] } {
   const before = new Map(prev.map((l) => [l.id, l]));
   const withdrawn: string[] = [];
   const looks = next.map((l) => {
     const old = before.get(l.id);
-    if (l.approval && old && JSON.stringify(old.action) !== JSON.stringify(l.action)) {
-      withdrawn.push(l.name);
-      return { ...l, approval: null, volunteerVisible: false };
+    if (!old) return { ...l, approval: null };
+    if (JSON.stringify(old.action) !== JSON.stringify(l.action)) {
+      if (old.approval) withdrawn.push(l.name);
+      return { ...l, approval: null, volunteerVisible: old.approval ? false : l.volunteerVisible };
     }
-    if (l.approval && !old) return { ...l, approval: l.approval };
-    return l;
+    return { ...l, approval: old.approval ?? null };
   });
   return { looks, withdrawn };
+}
+
+/** Same rule for submasters: approval and "came from Eos" are kept from the saved copy. */
+export function normalizeSubApprovals(prev: SubmasterConfig[], next: SubmasterConfig[]): SubmasterConfig[] {
+  const before = new Map(prev.map((s) => [s.sub, s]));
+  return next.map((s) => {
+    const old = before.get(s.sub);
+    const fromEos = !!(old?.fromEos || s.fromEos);
+    return { ...s, fromEos: fromEos || undefined, approval: old?.approval ?? null };
+  });
 }
 
 /** Text an operator agrees to when approving a look or submaster for volunteers. */
