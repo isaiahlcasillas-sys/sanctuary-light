@@ -11,3 +11,4 @@ export * from './approval';
 export * from './firstConnection';
 export * from './importReport';
 export * from './lookDesign';
+export * from './liveLook';

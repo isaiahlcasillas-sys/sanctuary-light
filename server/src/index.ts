@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { APPROVAL_STATEMENT, assessReadiness, PLAYBACK_APPROVAL_STATEMENT, cueNumbers, normalizeCueListApprovals, normalizeLookApprovals, normalizeSubApprovals, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
+import { APPROVAL_STATEMENT, planLiveLook, assessReadiness, PLAYBACK_APPROVAL_STATEMENT, cueNumbers, normalizeCueListApprovals, normalizeLookApprovals, normalizeSubApprovals, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
 import { Auth } from './auth';
 import { parseSleepPrevention, preventSleep } from './platform';
 import { Controller } from './controller';
@@ -207,6 +207,24 @@ app.post('/api/approve', operatorOnly, (req, res) => {
   }
 });
 
+// ── Apply to Eos / Record to Eos (Phase 4B) ──
+// The plan the operator sees before applying. Read-only: nothing is sent to Eos here.
+app.get('/api/live/plan', operatorOnly, (req, res) => {
+  const look = store.get().looks.find((l) => l.id === String(req.query.lookId ?? ''));
+  if (!look) { res.status(404).json({ error: 'Unknown look' }); return; }
+  const fade = req.query.fade != null ? Number(req.query.fade) : null;
+  res.json({ block: controller.liveApplyBlock(look.id), plan: planLiveLook(store.get(), look, { fadeSeconds: fade }), lastApply: controller.lastApply?.lookId === look.id ? controller.lastApply : null });
+});
+app.post('/api/record/plan', operatorOnly, (req, res) => {
+  const b = req.body ?? {};
+  // A refusal is a normal answer here ({ ok: false, error }), not an HTTP error.
+  res.json(controller.recordPlan({ lookId: String(b.lookId ?? ''), list: Number(b.list), cue: String(b.cue ?? ''), label: String(b.label ?? ''), fadeSeconds: b.fadeSeconds == null ? null : Number(b.fadeSeconds) }));
+});
+app.post('/api/record/verify', operatorOnly, async (req, res) => {
+  const b = req.body ?? {};
+  res.json(await controller.recordVerify({ lookId: String(b.lookId ?? ''), list: Number(b.list), cue: String(b.cue ?? ''), label: String(b.label ?? '') }));
+});
+
 // ── First Real Connection workflow: operator confirmations (nothing is sent to Eos) ──
 app.post('/api/first-connection', operatorOnly, (req, res) => {
   const b = req.body ?? {};
@@ -231,6 +249,14 @@ app.post('/api/first-connection', operatorOnly, (req, res) => {
       if (f.area === 'house' || f.area === 'utility') { res.status(400).json({ error: `Channel ${f.channel} is a house/utility light. House lights matter to SceneStation, so choose a stage or front light for the first test.` }); return; }
       if (!who) { res.status(400).json({ error: 'Enter the name of the person who approved this test.' }); return; }
       saved = controller.recordFirstConnection({ testFixture: { channel: f.channel, approvedBy: who.slice(0, 80), at: now } });
+      break;
+    }
+    case 'liveLookTest': {
+      // What the operator saw after applying the test look to one real fixture.
+      const f = cfg.fixtures.find((x) => x.channel === Number(b.channel));
+      if (!f) { res.status(400).json({ error: `Channel ${b.channel} isn't in the patch.` }); return; }
+      const responded = b.responded === true ? true : b.responded === false ? false : null;
+      saved = controller.recordCommissioning({ liveLookTest: { at: now, lookId: String(b.lookId ?? ''), channel: f.channel, level: Number(b.level) || 0, operatorConfirmedLight: responded, note: String(b.note ?? '').slice(0, 300) } });
       break;
     }
     default: res.status(400).json({ error: 'Unknown step' }); return;

@@ -35,7 +35,7 @@ Only what each fixture is known to support is stored: a color on a dimmer-only f
 
 ![Look library](screenshots/look-library.png)
 
-- **Play** a look by clicking its picture. In SIM it crossfades over the look's fade time; in Monitor nothing is sent; in Live a local look still only changes the preview (it is never turned into an Eos command).
+- **Preview** a local look by clicking its picture: it only changes the stage picture, in every mode (in SIM it crossfades over the look's fade time). Sending a look to the real lights is a separate, explicit action: **Apply to Eos** (LIVE only), see [LIVE_LOOKS.md](LIVE_LOOKS.md).
 - **⋯** menu: edit (local looks), duplicate (an Eos look duplicates into a local look you can design), rename, move to another collection, delete (a settings backup is kept).
 - Collections filter the library. **+ Collection** starts a new one; it's kept once a look is saved into it.
 - Thumbnails are drawn from what a look sets. Looks that play something in Eos show **"Plays in Eos: contents not visible here"** rather than an invented picture.
@@ -52,6 +52,6 @@ The stage is a **conceptual sketch**, not a photometric model of the sanctuary:
 ## Safety
 
 - The Look Designer and simulated fades run in **Offline Simulation only**; Live behaviour is unchanged.
-- Saving a look never records anything in Eos, and a local look never becomes a live lighting command. Turning designed looks into Eos cues would need a separately designed, verified and approved workflow (not built).
+- Saving a look never records anything in Eos, and Preview never sends anything. Only **Apply to Eos** (operator, LIVE, server-checked, intensity only for now) sends a look to the real lights, and **Record to Eos** is an operator-assisted workflow confirmed by reading the cue list back. See [LIVE_LOOKS.md](LIVE_LOOKS.md).
 - Volunteers see a look only if it's marked for volunteers, and looks that play something in Eos still need an operator's approval. The server enforces this.
 - Relay, house-light and cue-list protections are unchanged.

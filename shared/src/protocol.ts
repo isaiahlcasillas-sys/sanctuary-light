@@ -1,3 +1,4 @@
+import type { ApplyReport } from './liveLook';
 import type { AppConfig, FixtureState, OperatingMode, ParamKey, RGB, ValueSource } from './model';
 
 export type Role = 'volunteer' | 'operator';
@@ -12,6 +13,8 @@ export type Command =
   | { kind: 'setColor'; target: Target; rgb: RGB }
   | { kind: 'setParam'; target: Target; param: ParamKey; value: number }
   | { kind: 'fireLook'; lookId: string }
+  /** Send a designed local look to Eos (operator, Live mode only; intensity only in Phase 4B). */
+  | { kind: 'applyLook'; lookId: string; fadeSeconds?: number | null; confirm: boolean }
   | { kind: 'fireCue'; list: number; cue: string }
   /** GO / BACK on a cue list (defaults to the configured master cue list). */
   | { kind: 'go'; list?: number }
@@ -42,6 +45,8 @@ export interface CommandResult {
   delivery: Delivery;
   message: string;
   osc?: string[];
+  /** For Apply to Eos: exactly what was sent, failed, skipped and left out. */
+  report?: ApplyReport;
 }
 
 export type ConnectionState = 'disabled' | 'connecting' | 'connected' | 'disconnected' | 'error';

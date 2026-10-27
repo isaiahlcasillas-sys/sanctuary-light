@@ -23,6 +23,15 @@ Requirements on every version:
 
 These rules live in `shared/src/eosVersion.ts` (`eosCapabilities`, `recommendConnection`, `checkConnectionCompat`). Settings validation, the setup wizard and the connection engine all use them. Impossible combinations are refused: 3037 before 3.1.0, 3037 without SLIP, 3038 before 3.3.9, extra ports before 2.9.0, the reserved 3036, and TCP on 1.x.
 
+## Apply to Eos (Phase 4B)
+
+A designed look is sent as one command line per distinct level, through the documented `/eos/newcmd` (or `/eos/user/<n>/newcmd`) address, exactly as an operator would type it: `Chan 1 Thru 3 At 25 Enter`. Channels are always listed explicitly. Only that exact shape is accepted by the command builder (`levelCommand`).
+
+- **Intensity:** the same command form as the inspector's faders.
+- **Fade:** optional, as Eos *manual time* (`Chan 1 At 25 Time 3 Enter`). **To verify on our console**; off by default.
+- **Color and other parameters:** not sent yet. `/eos/param/<name>` exists, but how each fixture's parameters are named and scaled on our console must be verified first.
+- Eos doesn't report channel levels back over OSC, so a sent command is never treated as confirmation.
+
 ## GO / BACK
 
 | Method | Addresses | Acts on | When used |

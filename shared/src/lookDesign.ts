@@ -1,7 +1,7 @@
 /**
  * Look Designer helpers: local looks built fixture by fixture, simulated fades between them,
- * and the library's collections. Everything here is local to Sanctuary Light. Nothing turns a
- * designed look into an Eos command; that needs a separately designed and approved workflow.
+ * and the library's collections. Everything here is local to Sanctuary Light. Sending a look to
+ * Eos is a separate, explicit, server-checked action (see liveLook.ts).
  */
 import type { AppConfig, Capability, Fixture, FixtureProfile, FixtureState, Look, LookFixtureState, RGB } from './model';
 

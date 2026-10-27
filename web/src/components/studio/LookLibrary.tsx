@@ -4,13 +4,15 @@
  * Looks that play something in Eos show what they trigger, never an invented preview.
  */
 import { useMemo, useState } from 'react';
-import { Copy, FolderInput, MoreHorizontal, Pencil, Play, Plus, Sparkles, Trash2, Type } from 'lucide-react';
+import { BookPlus, Copy, Eye, FolderInput, MoreHorizontal, Pencil, Play, Plus, Send, Sparkles, Trash2, Type } from 'lucide-react';
 import * as Menu from '@radix-ui/react-dropdown-menu';
 import { collectionOf, lookCollections, lookLevels, type AppConfig, type Look } from '@sanctuary/shared';
 import { api } from '../../lib/api';
 import { sendCommand, useApp } from '../../state/store';
 import { actionLabel, LOOK_ICONS } from '../LooksGrid';
-import { Confirm, Modal } from '../ui';
+import { Confirm, Modal, Tip } from '../ui';
+import { ApplyToEosDialog } from './ApplyToEosDialog';
+import { RecordToEosDialog } from './RecordToEosDialog';
 
 /** A small overhead picture of what a look sets. Only drawn for looks Sanctuary Light knows the contents of. */
 export function LookThumbnail({ config, look }: { config: AppConfig; look: Look }) {
@@ -58,6 +60,9 @@ export function LookLibrary() {
   const shown = config.looks.filter((l) => filter === 'all' || collectionOf(l) === filter);
   const [renaming, setRenaming] = useState<Look | null>(null);
   const [deleting, setDeleting] = useState<Look | null>(null);
+  const [applying, setApplying] = useState<Look | null>(null);
+  const [recording, setRecording] = useState<Look | null>(null);
+  const mode = useApp((s) => s.status?.mode ?? 'offline');
   const [newCollection, setNewCollection] = useState(false);
   const operator = role === 'operator';
 
@@ -91,21 +96,33 @@ export function LookLibrary() {
         <div className="look-cards">
           {shown.map((l) => (
             <article key={l.id} className="look-card" data-active={active === l.id} data-editing={designer?.lookId === l.id}>
-              <button className="look-card-main" onClick={() => void sendCommand({ kind: 'fireLook', lookId: l.id })} aria-label={`Play ${l.name}`}>
-                <LookThumbnail config={config} look={l} />
-                <span className="look-card-play" aria-hidden><Play size={14} fill="currentColor" /></span>
-              </button>
+              {/* Local looks: Preview only changes the stage picture, in every mode. Eos looks play their cue/preset in Live. */}
+              <Tip label={l.action.type === 'none' ? 'Preview: changes the stage picture only. Nothing is sent to Eos.' : mode === 'eos-live' ? `Play: runs ${actionLabel(l).replace('Eos · ', '')} on the real Eos.` : `Play: preview only in ${mode === 'offline' ? 'SIM' : 'MONITOR'}.`}>
+                <button className="look-card-main" onClick={() => void sendCommand({ kind: 'fireLook', lookId: l.id })} aria-label={l.action.type === 'none' ? `Preview ${l.name}` : `Play ${l.name}`}>
+                  <LookThumbnail config={config} look={l} />
+                  <span className="look-card-play" aria-hidden>{l.action.type === 'none' ? <Eye size={14} /> : <Play size={14} fill="currentColor" />}</span>
+                  {l.action.type !== 'none' && mode === 'eos-live' && <span className="look-card-live">LIVE · plays in Eos</span>}
+                  {l.eosCue && <span className="look-card-cue">Eos cue {l.eosCue.list}/{l.eosCue.cue}</span>}
+                </button>
+              </Tip>
               <div className="look-card-meta">
                 <div className="grow">
                   <div className="look-card-name" title={l.name}>{l.name}</div>
                   <div className="look-card-sub">{l.action.type === 'none' ? `Local${l.fadeSeconds ? ` · ${l.fadeSeconds}s fade` : ''}` : actionLabel(l)}</div>
                 </div>
+                {operator && l.action.type === 'none' && (
+                  <Tip label={mode === 'eos-live' ? 'Apply to Eos: send this look to the real lights (shows what will be sent first)' : 'Apply to Eos needs LIVE mode'}>
+                    <button className="btn sm icon apply-btn" aria-label={`Apply ${l.name} to Eos`} disabled={mode !== 'eos-live'} onClick={() => setApplying(l)}><Send size={14} /></button>
+                  </Tip>
+                )}
                 {operator && (
                   <Menu.Root>
                     <Menu.Trigger asChild><button className="btn sm icon ghost" aria-label={`More actions for ${l.name}`}><MoreHorizontal size={16} /></button></Menu.Trigger>
                     <Menu.Portal>
                       <Menu.Content className="menu" sideOffset={4} align="end">
                         {l.action.type === 'none' && <Menu.Item className="menu-item" disabled={!!designer} onSelect={() => useApp.getState().openDesigner(l)}><Pencil size={14} />Edit in Look Designer</Menu.Item>}
+                        {l.action.type === 'none' && <Menu.Item className="menu-item" disabled={mode !== 'eos-live'} onSelect={() => setApplying(l)}><Send size={14} />Apply to Eos…{mode !== 'eos-live' ? ' (LIVE only)' : ''}</Menu.Item>}
+                        {l.action.type === 'none' && <Menu.Item className="menu-item" onSelect={() => setRecording(l)}><BookPlus size={14} />Record to Eos…</Menu.Item>}
                         <Menu.Item className="menu-item" disabled={!!designer} onSelect={() => useApp.getState().openDesigner(l, { duplicate: true })}><Copy size={14} />Duplicate{l.action.type !== 'none' ? ' as local look' : ''}</Menu.Item>
                         <Menu.Item className="menu-item" onSelect={() => setRenaming(l)}><Type size={14} />Rename</Menu.Item>
                         <Menu.Sub>
@@ -127,6 +144,8 @@ export function LookLibrary() {
           ))}
         </div>
       )}
+      <ApplyToEosDialog look={applying} onClose={() => setApplying(null)} />
+      {recording && <RecordToEosDialog look={recording} onClose={() => setRecording(null)} />}
       <RenameDialog look={renaming} onClose={() => setRenaming(null)} onSave={(name) => (renaming ? update(renaming.id, { name }, `Renamed to “${name}”.`) : false)} />
       <NameDialog open={newCollection} title="New collection" label="Collection name" placeholder="e.g. Easter" onClose={() => setNewCollection(false)}
         onSave={(name) => { setExtra([...extra, name]); setFilter(name); return true; }} />

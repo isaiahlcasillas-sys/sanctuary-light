@@ -135,6 +135,8 @@ export interface Look {
   collection?: string;
   /** Last edited in the Look Designer. */
   updatedAt?: number;
+  /** A cue this look was recorded into in Eos, confirmed by reading the cue list back. */
+  eosCue?: { list: number; cue: string; label: string; verifiedAt: number } | null;
   /**
    * An operator reviewed what this look does in Eos and authorised it for Volunteer Mode.
    * Required for any look with an Eos action: a cue, preset, sub or snapshot can do things
@@ -246,6 +248,8 @@ export interface CommissioningRecord {
   networkCheckedAt: number | null;
   monitorTest: { at: number; ok: boolean; replyMs: number | null; reportedVersion: string | null; detail: string } | null;
   liveTest: { at: number; channel: number; level: number; operatorConfirmedLight: boolean | null; released: boolean } | null;
+  /** Live look test (Phase 4B): a designed look applied to one fixture, and what the operator saw. */
+  liveLookTest?: { at: number; lookId: string; channel: number; level: number; operatorConfirmedLight: boolean | null; note: string } | null;
   /** Last time the app was seen to lose and then regain the console (recorded automatically). */
   recoveryObservedAt: number | null;
   notes: string;

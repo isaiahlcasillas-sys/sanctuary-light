@@ -80,6 +80,16 @@ export class EosCommandBuilder {
     return [this.cmd(`${this.targetText(t)} At ${at} #`)];
   }
 
+  /**
+   * One planned Apply-to-Eos level command (see shared/liveLook.ts). Only the exact shape
+   * "Chan <channels> At <level>[ Time <seconds>] #" is accepted, so nothing else can be typed
+   * onto the console's command line this way.
+   */
+  levelCommand(text: string): OscMessage[] {
+    if (!/^Chan [0-9]+( (\+|Thru) [0-9]+)* At (Full|[0-9]{1,2}|0)( Time [0-9]{1,2}(\.[0-9])?)? #$/.test(text)) throw new Error(`Refusing unexpected command text "${text}"`);
+    return [this.cmd(text)];
+  }
+
   /** Select, then set each parameter by its Eos parameter name. */
   params(t: { channels: number[]; eosGroup: number | null }, values: { eosName: string; value: number }[]): OscMessage[] {
     return [
