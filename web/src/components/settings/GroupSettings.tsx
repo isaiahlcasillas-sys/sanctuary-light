@@ -13,7 +13,7 @@ export function GroupSettings() {
   return (
     <div>
       <h4>Groups</h4>
-      <p className="hint">If a group also exists in the Ion show file, enter its Eos group number. Sanctuary Light reads that group from the console (read-only) and sends "Group N" <strong>only</strong> when the console's membership exactly matches this list and contains no protected channel. Otherwise it lists the channels explicitly, so a group edited on the Ion can never make this app operate relays.</p>
+      <p className="hint">If a group also exists in the Eos show file, enter its Eos group number. Sanctuary Light reads that group from the console (read-only) and sends "Group N" <strong>only</strong> when the console's membership exactly matches this list and contains no protected channel. Otherwise it lists the channels explicitly, so a group edited in Eos can never make this app operate relays.</p>
       <button className="btn sm" style={{ marginBottom: 8 }} onClick={() => void sendCommand({ kind: 'verifyGroups' })}>Verify against console</button>
       <table className="data-table">
         <thead><tr><th>Name</th><th style={{ width: 60 }}>Color</th><th>Channels</th><th style={{ width: 90 }}>Eos group</th><th style={{ width: 80 }}>Volunteer</th><th style={{ width: 110 }}>Console</th><th style={{ width: 36 }} /></tr></thead>

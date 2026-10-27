@@ -21,7 +21,7 @@ export interface EngineConnection {
 /**
  * An output engine owns the network path to lighting. Exactly one engine runs at a
  * time; switching modes always stops the old engine before starting the new one, so
- * the Ion path and the future direct-DMX path can never transmit together.
+ * Eos path and the future direct-DMX path can never transmit together.
  */
 export interface OutputEngine {
   readonly id: 'eos-osc' | 'direct-dmx';

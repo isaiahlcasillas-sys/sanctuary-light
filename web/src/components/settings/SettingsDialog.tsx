@@ -33,7 +33,7 @@ export function SettingsDialog({ open, onOpenChange, onOpenWizard, initialTab = 
     <Modal open={open} onOpenChange={onOpenChange} title="Settings" wide>
       <div className="row" style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)' }}>
         <strong style={{ fontSize: 16 }}>Settings</strong>
-        <span className="hint">Saved on this computer only. Nothing here changes the Ion show file.</span>
+        <span className="hint">Saved on this computer only. Nothing here changes the Eos show file.</span>
         <span className="spacer" />
         <button className="btn sm icon ghost" aria-label="Close settings" onClick={() => onOpenChange(false)}><X size={16} /></button>
       </div>

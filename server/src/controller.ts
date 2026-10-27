@@ -4,7 +4,7 @@
  *   1. checks the caller's role,
  *   2. resolves the target against the configured patch,
  *   3. applies safety rules (protected channels, read-only monitor mode, arming),
- *   4. either updates the simulation only, or transmits OSC to the Ion,
+ *   4. either updates the simulation only, or transmits OSC to Eos,
  *   5. reports back exactly which of those happened.
  */
 import {
@@ -140,7 +140,7 @@ export class Controller {
         ? { status: 'available', note: 'Fade progress from /eos/out/active/cue.' }
         : { status: 'unknown', note: 'Waiting for console feedback.' },
       channelLevels: { status: 'unavailable', note: 'Eos OSC does not stream every channel level to third-party apps. Levels shown are simulated or commanded, never confirmed.' },
-      submasterLevels: { status: 'unavailable', note: 'Submaster positions are not reported back over OSC by this app; the console may differ (e.g. if moved on the Ion).' },
+      submasterLevels: { status: 'unavailable', note: 'Submaster positions are not reported back over OSC by this app; the console may differ (e.g. if moved in Eos).' },
       version: offline ? off : v1
         ? { status: 'unavailable', note: 'Version query needs the Eos 2.x+ /eos/get API (or set the Eos version in Settings).' }
         : this.consoleVersion ? { status: 'available', note: this.consoleVersion } : { status: 'unknown', note: conn.state === 'connected' ? 'Asked; no reply yet.' : 'Not connected.' },
@@ -268,7 +268,7 @@ export class Controller {
     const state = this.connection().state;
     const stale = this.isStale();
     const healthy = state === 'connected' && !stale && this.connection().lastRxAt != null;
-    // Only a loss *after* a healthy connection counts: a failed first attempt (e.g. the Ion
+    // Only a loss *after* a healthy connection counts: a failed first attempt (e.g. Eos
     // still booting) is not a recovery.
     if (!healthy) { if (this.hadHealthyConnection) this.connectionWasLost = true; return; }
     this.hadHealthyConnection = true;
@@ -352,7 +352,7 @@ export class Controller {
   }
 
   shutdown() {
-    // Deliberately no blackout / release: the Ion simply keeps running its current state.
+    // Deliberately no blackout / release: Eos simply keeps running its current state.
     clearInterval(this.statusTimer);
     this.stopEngine();
   }
@@ -479,7 +479,7 @@ export class Controller {
     switch (this.mode) {
       case 'offline':
         simulate('simulated');
-        return { ok: true, delivery: 'simulated', message: `${description} — preview only (offline). Nothing was sent to the Ion.`, osc };
+        return { ok: true, delivery: 'simulated', message: `${description} — preview only (offline). Nothing was sent to Eos.`, osc };
       case 'eos-monitor':
         return { ok: false, delivery: 'blocked', message: 'Monitor mode is read-only. Switch to Live Control to send commands.', osc };
       case 'direct-dmx':
@@ -487,7 +487,7 @@ export class Controller {
       case 'eos-live': {
         const eos = this.eos;
         if (!eos || this.connection().state !== 'connected') {
-          return { ok: false, delivery: 'error', message: `Not connected to the Ion — nothing was sent. (${this.connection().detail})`, osc };
+          return { ok: false, delivery: 'error', message: `Not connected to Eos — nothing was sent. (${this.connection().detail})`, osc };
         }
         // A stale connection may be half-open: bytes written now could be delivered much later
         // when the link recovers. Refuse instead, so nothing is ever replayed late.
@@ -497,13 +497,13 @@ export class Controller {
           return {
             ok: false, delivery: 'error', osc,
             message: never
-              ? 'The Ion has not answered at all on this connection — nothing was sent. Check that OSC RX and TX are on in the Ion\'s Show Control settings, and the port/format.'
-              : 'The Ion has not answered recently (connection stale) — nothing was sent. Use the Ion directly if needed.',
+              ? 'Eos has not answered at all on this connection — nothing was sent. Check that OSC RX and TX are on in Eos\'s Show Control settings, and the port/format.'
+              : 'Eos has not answered recently (connection stale) — nothing was sent. Use Eos directly if needed.',
           };
         }
         const send = () => {
           if (this.isStale()) {
-            const message = `${description}: NOT sent — the Ion stopped answering before it could go out.`;
+            const message = `${description}: NOT sent — Eos stopped answering before it could go out.`;
             this.log('warn', message);
             this.broadcast({ t: 'notice', level: 'error', message });
             return;
@@ -514,11 +514,11 @@ export class Controller {
         if (rateKey) {
           const how = this.limiter.run(rateKey, send);
           simulate('commanded');
-          return { ok: true, delivery: 'sent', message: `${description} — sent to Ion${how === 'queued' ? ' (rate-limited, latest value)' : ''}`, osc };
+          return { ok: true, delivery: 'sent', message: `${description} — sent to Eos${how === 'queued' ? ' (rate-limited, latest value)' : ''}`, osc };
         }
         try { eos.transmit(msgs); } catch (e) { return { ok: false, delivery: 'error', message: (e as Error).message, osc }; }
         simulate('commanded');
-        return { ok: true, delivery: 'sent', message: `${description} — sent to Ion`, osc };
+        return { ok: true, delivery: 'sent', message: `${description} — sent to Eos`, osc };
       }
     }
   }
@@ -722,7 +722,7 @@ export class Controller {
 
   private async testConnection(record: boolean): Promise<CommandResult> {
     if (this.mode === 'offline' || !this.eos) {
-      return { ok: false, delivery: 'blocked', message: 'Offline mode sends no network traffic. Switch to Ion Monitor to test the connection.' };
+      return { ok: false, delivery: 'blocked', message: 'Offline mode sends no network traffic. Switch to Eos Monitor to test the connection.' };
     }
     const before = this.eos.connection().lastRxAt ?? 0;
     const sentAt = Date.now();

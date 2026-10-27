@@ -2,9 +2,9 @@
  * Phase 5 placeholder: direct sACN / Art-Net output via the ENTTEC ODE Mk3.
  *
  * Deliberately NOT implemented. Before this can exist we must decide:
- *   - which universes Sanctuary Light would own vs. the Ion vs. SceneStation/Pathport
- *   - sACN priority strategy (never compete with the Ion on the same universe)
- *   - how the Ion is taken out of the data path (physically or by universe)
+ *   - which universes Sanctuary Light would own vs. Eos vs. SceneStation/Pathport
+ *   - sACN priority strategy (never compete with Eos on the same universe)
+ *   - how Eos is taken out of the data path (physically or by universe)
  * See docs/PHASE5_DIRECT_DMX.md. Starting this engine always throws.
  */
 import type { EngineConnection, OutputEngine } from './types';

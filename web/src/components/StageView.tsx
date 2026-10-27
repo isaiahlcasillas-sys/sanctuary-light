@@ -147,7 +147,7 @@ export function StageView({ compact = false }: { compact?: boolean }) {
       await api.put('/api/config/fixtures', cfg.fixtures.map((f) => (pos.has(f.id) ? { ...f, stage: pos.get(f.id)! } : f)));
       await api.put('/api/config/stage', { ...cfg.stage, elements: st.draftElements ?? cfg.stage.elements });
       useApp.setState({ draftFixtures: null, draftElements: null, editLayout: false });
-      st.toast('info', 'Layout saved on this computer. The Ion show file was not changed.');
+      st.toast('info', 'Layout saved on this computer. The Eos show file was not changed.');
     } catch (e) {
       st.toast('error', `Could not save layout: ${(e as Error).message}`);
     }

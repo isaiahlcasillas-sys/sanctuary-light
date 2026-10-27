@@ -15,11 +15,11 @@ export function actionLabel(l: Look): string {
   const a = l.action;
   switch (a.type) {
     case 'none': return 'Local look · preview only';
-    case 'cue': return `Ion · Cue ${a.list}/${a.cue}`;
-    case 'preset': return `Ion · Grp ${a.eosGroup} Preset ${a.preset}`;
-    case 'macro': return `Ion · Macro ${a.macro}`;
-    case 'sub': return `Ion · Sub ${a.sub} @ ${a.level}%`;
-    case 'snapshot': return `Ion · Snapshot ${a.snapshot}`;
+    case 'cue': return `Eos · Cue ${a.list}/${a.cue}`;
+    case 'preset': return `Eos · Grp ${a.eosGroup} Preset ${a.preset}`;
+    case 'macro': return `Eos · Macro ${a.macro}`;
+    case 'sub': return `Eos · Sub ${a.sub} @ ${a.level}%`;
+    case 'snapshot': return `Eos · Snapshot ${a.snapshot}`;
   }
 }
 
@@ -32,7 +32,7 @@ export function LooksGrid({ volunteer = false }: { volunteer?: boolean }) {
       {visible.map((l) => {
         const Icon = LOOK_ICONS[l.icon] ?? Sparkles;
         return (
-          <Tip key={l.id} label={l.action.type === 'none' ? 'Local look: stored only in Sanctuary Light. Firing it changes the on-screen preview — nothing on the Ion.' : `Plays show-file data on the Ion (${actionLabel(l).replace('Ion · ', '')}) when Live. The preview is an approximation.`}>
+          <Tip key={l.id} label={l.action.type === 'none' ? 'Local look: stored only in Sanctuary Light. Firing it changes the on-screen preview — nothing in Eos.' : `Plays show-file data in Eos (${actionLabel(l).replace('Eos · ', '')}) when Live. The preview is an approximation.`}>
             <button className={`look-btn${volunteer ? ' big' : ''}`} data-active={active === l.id}
               style={{ background: `linear-gradient(135deg, ${l.gradient[0]}, ${l.gradient[1]})` }}
               onClick={async () => { const r = await sendCommand({ kind: 'fireLook', lookId: l.id }); if (r.ok) setActive(l.id); }}>

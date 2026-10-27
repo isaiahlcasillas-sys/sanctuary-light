@@ -56,3 +56,20 @@ describe('TCP framing', () => {
     expect(out.flatMap((p) => decodePacket(p)).map((m) => m.address)).toEqual(['/one', '/two']);
   });
 });
+
+describe('UDP link on the same PC', () => {
+  it('listens on loopback only when Eos is on this computer', async () => {
+    const dgram = await import('node:dgram');
+    const { UdpLink } = await import('../src/osc/transport');
+    const port = 40000 + Math.floor(Math.random() * 20000);
+    const link = new UdpLink({ host: '127.0.0.1', consolePort: port + 1, localPort: port });
+    const got = new Promise<string>((resolve) => link.on('message', (m) => resolve(m.address)));
+    await new Promise<void>((resolve) => { link.on('open', () => resolve()); link.open(); });
+    expect((link as unknown as { socket: import('node:dgram').Socket }).socket.address().address).toBe('127.0.0.1');
+    const sender = dgram.createSocket('udp4');
+    sender.send(encodeMessage({ address: '/eos/out/ping', args: [] }), port, '127.0.0.1');
+    expect(await got).toBe('/eos/out/ping');
+    sender.close();
+    link.close();
+  });
+});

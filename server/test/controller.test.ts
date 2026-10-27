@@ -125,6 +125,8 @@ describe('Controller with a fake Eos console over TCP', () => {
     await wait(100);
     const r = await c.execute({ kind: 'go' }, 'operator');
     expect(r).toMatchObject({ ok: false, delivery: 'error' });
+    // Same-PC deployment: say plainly that Eos on this computer isn't answering.
+    expect(c.status().connection.detail).toMatch(/not answering on this computer/);
     c.shutdown();
   });
 });

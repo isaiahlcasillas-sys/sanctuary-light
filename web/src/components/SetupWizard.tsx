@@ -1,12 +1,12 @@
 /**
- * First-time Ion setup: identify Eos version → network → Monitor test → one explicitly
+ * First-time Eos setup: identify Eos version → network → Monitor test → one explicitly
  * authorized single-channel live test. Each step only acts when the operator presses
  * its button; nothing is sent to the console automatically.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Eye, Lightbulb, Network, ShieldCheck, Undo2, Zap } from 'lucide-react';
 import {
-  checkConnectionCompat, describeConsoleIp, eosCapabilities, recommendConnection, sameSubnet,
+  checkConnectionCompat, describeConsoleIp, eosCapabilities, isLoopback, parseEosVersion, recommendConnection, sameSubnet, versionAtLeast,
   type LocalInterface, type Settings,
 } from '@sanctuary/shared';
 import { api } from '../lib/api';
@@ -40,10 +40,10 @@ export function SetupWizard({ open, onOpenChange }: { open: boolean; onOpenChang
   };
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Ion Setup Wizard" wide>
+    <Modal open={open} onOpenChange={onOpenChange} title="Eos Setup Wizard" wide>
       <div className="row" style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)' }}>
-        <strong style={{ fontSize: 16 }}>Ion Setup Wizard</strong>
-        <span className="hint">Nothing is sent to the Ion until you press a button that says so.</span>
+        <strong style={{ fontSize: 16 }}>Eos Setup Wizard</strong>
+        <span className="hint">Nothing is sent to Eos until you press a button that says so.</span>
         <span className="spacer" />
         <button className="btn sm" onClick={() => onOpenChange(false)}>Close</button>
       </div>
@@ -79,13 +79,13 @@ function IntroStep() {
   return (
     <div>
       <h4>Before you start</h4>
-      <p className="hint">Do this outside of services, with someone standing at the Ion who can see the room.</p>
+      <p className="hint">Do this outside of services, with someone standing at the Eos computer who can see the room.</p>
       <ul className="checklist">
         <li>Steps 1–3 only read from the console. Step 3 connects in <strong>Monitor (read-only)</strong> mode.</li>
         <li>Step 4 sends <strong>exactly one command</strong> to <strong>one channel</strong> you choose, and only after you confirm it.</li>
         <li>Protected relay/utility channels can't be chosen for the test.</li>
-        <li>Disconnecting or closing the wizard never sends anything to the Ion.</li>
-        <li>The Ion stays in charge: anyone at the console can override what this app does.</li>
+        <li>Disconnecting or closing the wizard never sends anything to Eos.</li>
+        <li>Eos stays in charge: anyone at the console can override what this app does.</li>
       </ul>
     </div>
   );
@@ -98,7 +98,7 @@ function VersionStep({ draft, setDraft, onSave }: { draft: Settings; setDraft(s:
   return (
     <div>
       <h4>1. Identify the Eos version</h4>
-      <p className="hint">On the Ion, open <strong>Browser → Help → About</strong> (or the About tab). Type the version number exactly as shown, for example <code>2.9.3</code> or <code>3.2.12</code>.</p>
+      <p className="hint">In Eos, open <strong>Browser → Help → About</strong> (or the About tab). Type the version number exactly as shown, for example <code>2.9.3</code> or <code>3.2.12</code>.</p>
       <div className="form-grid">
         <label className="field"><span>Eos software version</span>
           <input className="input" autoFocus placeholder="e.g. 2.9.3" value={draft.connection.eosVersion} onChange={(e) => set(e.target.value.trim())} />
@@ -142,13 +142,32 @@ function NetworkStep({ draft, setDraft, onSave }: { draft: Settings; setDraft(s:
   const compat = checkConnectionCompat(c);
   const onSubnet = ifaces?.filter((i) => c.consoleIp && sameSubnet(i.address, c.consoleIp, i.netmask)) ?? [];
   const allChecked = rec.consoleSteps.every((_, i) => checks[i]);
+  const [where, setWhere] = useState<'this' | 'other' | null>(isLoopback(c.consoleIp) ? 'this' : c.consoleIp ? 'other' : null);
+  const sameComputer = where === 'this' && isLoopback(c.consoleIp);
+  const loopbackDocumented = versionAtLeast(parseEosVersion(c.eosVersion), 3, 2);
 
   return (
     <div>
       <h4><Network size={16} style={{ verticalAlign: -2 }} /> 2. Network</h4>
-      <p className="hint">On the Ion, the IP address is in the ECU/Shell network settings (or Setup → Device Settings → Network on Eos 3.3+). A static address is strongly preferred.</p>
+      <div className="card">
+        <strong>Where does Eos run?</strong>
+        <label className="row" style={{ margin: '6px 0' }}>
+          <input type="radio" name="eos-where" checked={where === 'this'} onChange={() => { setWhere('this'); set({ consoleIp: '127.0.0.1' }); }} />
+          <span><strong>On this computer</strong> (ETCnomad on the same PC as Sanctuary Light). Uses 127.0.0.1; nothing leaves this PC.</span>
+        </label>
+        <label className="row" style={{ margin: '6px 0' }}>
+          <input type="radio" name="eos-where" checked={where === 'other'} onChange={() => { setWhere('other'); if (isLoopback(c.consoleIp)) set({ consoleIp: '' }); }} />
+          <span><strong>On another console or computer</strong> (e.g. an Eos console). Its IP is in its network settings (ECU/Shell, or Setup → Device Settings → Network on 3.3+).</span>
+        </label>
+        {sameComputer && !loopbackDocumented && (
+          <p style={{ color: 'var(--warn)' }}>127.0.0.1 is documented for Eos 3.2 and later. On Eos {c.eosVersion || 'this version'}, if the Monitor test gets no reply, use this PC's own network address instead:
+            {ifaces?.map((i) => <button key={i.address} className="btn sm" style={{ marginLeft: 6 }} onClick={() => { setWhere('other'); set({ consoleIp: i.address }); }}>{i.address}</button>)}
+          </p>
+        )}
+      </div>
       <div className="form-grid">
-        <label className="field"><span>Ion IP address</span><input className="input" placeholder="e.g. 10.101.100.101" value={c.consoleIp} onChange={(e) => set({ consoleIp: e.target.value.trim() })} /></label>
+        {where === null && <p className="hint" style={{ gridColumn: '1 / -1' }}>Choose where Eos runs first.</p>}
+        {where === 'other' && <label className="field"><span>Eos console / computer IP address</span><input className="input" placeholder="e.g. 10.101.100.101" value={c.consoleIp} onChange={(e) => set({ consoleIp: e.target.value.trim() })} /></label>}
         <label className="field"><span>Transport</span>
           <select className="select" value={c.transport} onChange={(e) => set({ transport: e.target.value as typeof c.transport })}>
             <option value="tcp-1.0">TCP — OSC 1.0 (packet-length)</option><option value="tcp-1.1">TCP — OSC 1.1 (SLIP)</option><option value="udp">UDP</option>
@@ -158,16 +177,17 @@ function NetworkStep({ draft, setDraft, onSave }: { draft: Settings; setDraft(s:
         <label className="field"><span>OSC user (recommended: a spare user number)</span><input className="input" type="number" value={c.oscUser ?? ''} onChange={(e) => set({ oscUser: e.target.value === '' ? null : Number(e.target.value) })} /></label>
       </div>
       {c.consoleIp && !ip.ok && <p style={{ color: 'var(--err)' }}>{ip.note}</p>}
-      {ip.note && ip.ok && <p style={{ color: 'var(--warn)' }}>{ip.note}</p>}
+      {ip.note && ip.ok && !sameComputer && <p style={{ color: 'var(--warn)' }}>{ip.note}</p>}
       <div className="card">
         <strong>This computer</strong>
         {ifaces == null ? <div className="hint">Checking…</div> : ifaces.length === 0 ? <div className="hint">No network interfaces found.</div> : (
-          <ul className="checklist">{ifaces.map((i) => <li key={i.name + i.address}>{i.name}: <code>{i.address}</code> / {i.netmask}{c.consoleIp && sameSubnet(i.address, c.consoleIp, i.netmask) ? ' — same subnet as the Ion ✓' : ''}</li>)}</ul>
+          <ul className="checklist">{ifaces.map((i) => <li key={i.name + i.address}>{i.name}: <code>{i.address}</code> / {i.netmask}{c.consoleIp && sameSubnet(i.address, c.consoleIp, i.netmask) ? ' — same subnet as Eos ✓' : ''}</li>)}</ul>
         )}
-        {c.consoleIp && ip.ok && c.consoleIp !== '127.0.0.1' && ifaces && ifaces.length > 0 && onSubnet.length === 0 && (
-          <p style={{ color: 'var(--warn)' }}>No interface on this computer is on the same subnet as {c.consoleIp}. Unless a router connects them, the Ion will be unreachable.</p>
+        {c.consoleIp && ip.ok && !isLoopback(c.consoleIp) && ifaces && ifaces.length > 0 && onSubnet.length === 0 && (
+          <p style={{ color: 'var(--warn)' }}>No interface on this computer is on the same subnet as {c.consoleIp}. Unless a router connects them, Eos will be unreachable.</p>
         )}
-        {c.transport === 'udp' && onSubnet[0] && <p className="hint">For UDP, set the Ion's OSC UDP TX IP address to <code>{onSubnet[0].address}</code>.</p>}
+        {c.transport === 'udp' && sameComputer && <p className="hint">For UDP with Eos on this PC, set Eos's OSC UDP TX IP address to <code>127.0.0.1</code> (Sanctuary Light listens on loopback only). TCP is recommended.</p>}
+        {c.transport === 'udp' && !sameComputer && onSubnet[0] && <p className="hint">For UDP, set Eos's OSC UDP TX IP address to <code>{onSubnet[0].address}</code>.</p>}
       </div>
       {(compat.errors.length > 0 || compat.warnings.length > 0) && (
         <div className="card" role="alert">
@@ -176,7 +196,7 @@ function NetworkStep({ draft, setDraft, onSave }: { draft: Settings; setDraft(s:
         </div>
       )}
       <div className="card">
-        <strong>On the Ion (Eos {c.eosVersion || '?'})</strong>
+        <strong>In Eos {c.eosVersion || '(version ?)'}</strong>
         <p className="hint">{rec.summary}</p>
         {rec.consoleSteps.map((s, i) => (
           <label key={s} className="row" style={{ alignItems: 'flex-start', margin: '6px 0' }}>
@@ -222,7 +242,7 @@ function MonitorStep() {
         </div>
       )}
       {gv.length > 0 && <GroupTable />}
-      <p className="hint">On the Ion, press GO on a harmless cue: the cue card in Sanctuary Light should update with a green CONSOLE badge.</p>
+      <p className="hint">In Eos, press GO on a harmless cue: the cue card in Sanctuary Light should update with a green CONSOLE badge.</p>
     </div>
   );
 }
@@ -279,7 +299,7 @@ function LiveTestStep() {
   return (
     <div>
       <h4><Lightbulb size={16} style={{ verticalAlign: -2 }} /> 4. Single-channel live test</h4>
-      <p className="hint">This sends one command, <code>Chan {channel || '?'} At {level}</code>, to the Ion. Choose a channel whose light is easy to see and harmless to turn on.</p>
+      <p className="hint">This sends one command, <code>Chan {channel || '?'} At {level}</code>, to Eos. Choose a channel whose light is easy to see and harmless to turn on.</p>
       {!connected && <p style={{ color: 'var(--warn)' }}>Complete the Monitor test first. The console must be connected and responding.</p>}
       <div className="form-grid">
         <label className="field"><span>Channel (protected channels are excluded)</span>
@@ -291,7 +311,7 @@ function LiveTestStep() {
       </div>
       <div className="card">
         {[
-          'Someone is at the Ion and can see the room.',
+          'Someone is at the Eos computer and can see the room.',
           `Channel ${channel} (${fixture?.label ?? '?'}) is a light, not a relay or anything that switches power.`,
           'Nobody is on a ladder or lift, and no service or event is in progress.',
         ].map((t, i) => (
@@ -317,10 +337,10 @@ function LiveTestStep() {
             <button className={`btn sm ${lt.operatorConfirmedLight === true ? 'active' : ''}`} onClick={() => setConfirmed(true)}>Yes</button>
             <button className={`btn sm ${lt.operatorConfirmedLight === false ? 'active' : ''}`} onClick={() => setConfirmed(false)}>No</button>
           </div>
-          {lt.operatorConfirmedLight === false && <p className="hint">Check the OSC user, that OSC RX is enabled, and the Traffic Log. Use the Ion to restore the channel if needed.</p>}
+          {lt.operatorConfirmedLight === false && <p className="hint">Check the OSC user, that OSC RX is enabled, and the Traffic Log. Use Eos to restore the channel if needed.</p>}
         </div>
       )}
-      <p className="hint">"Release" sends <code>Chan {channel} Sneak</code>, which returns the channel to what the current cue says. You can also do this on the Ion.</p>
+      <p className="hint">"Release" sends <code>Chan {channel} Sneak</code>, which returns the channel to what the current cue says. You can also do this in Eos.</p>
     </div>
   );
 }

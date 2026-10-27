@@ -4,9 +4,9 @@ import type { ArchitecturalConfig } from './architecture';
  * Core data model for Sanctuary Light.
  *
  * IMPORTANT: `channel` everywhere in this model is an Eos *channel number* —
- * the logical number an operator types on the Ion ("Chan 21 At 50"). It is NOT
+ * the logical number an operator types in Eos ("Chan 21 At 50"). It is NOT
  * a DMX address. DMX universe/address is stored separately and is purely
- * informational in Ion-controlled mode (the Ion's patch owns that mapping).
+ * informational in Eos-controlled mode (Eos's patch owns that mapping).
  */
 
 export type ParamKey =
@@ -30,7 +30,7 @@ export interface FixtureProfile {
    * patched fixture type. Leave a key out if the fixture lacks the parameter.
    */
   eosParams: Partial<Record<ParamKey, string>>;
-  /** false = profile was guessed from equipment names, verify against the real Ion patch. */
+  /** false = profile was guessed from equipment names, verify against the real Eos patch. */
   verified: boolean;
   notes?: string;
 }
@@ -47,7 +47,7 @@ export interface Fixture {
   channel: number;
   label: string;
   profileId: string;
-  /** Informational only. In Ion mode the Ion patch is authoritative. */
+  /** Informational only. In Eos mode the Eos patch is authoritative. */
   dmx: DmxAddress | null;
   area: AreaId;
   /** Protected channels (relays/utility) need a timed unlock before any live command. */
@@ -121,7 +121,7 @@ export interface CueEntry { cue: string; label: string; notes?: string }
 export interface CueListConfig {
   list: number;
   label: string;
-  /** User-facing labels only; the Ion show file is never modified by editing these. */
+  /** User-facing labels only; the Eos show file is never modified by editing these. */
   cues: CueEntry[];
 }
 
@@ -188,7 +188,7 @@ export interface SafetySettings {
   localhostOnly: boolean;
 }
 
-/** What has been checked on the real console (filled in by the Ion Setup Wizard). */
+/** What has been checked on the real console (filled in by the Eos Setup Wizard). */
 export interface CommissioningRecord {
   /** Version the operator read from the console's About screen. */
   versionConfirmedAt: number | null;
@@ -230,18 +230,18 @@ export const MODE_INFO: Record<OperatingMode, { label: string; short: string; de
     transmits: false, available: true,
   },
   'eos-monitor': {
-    label: 'Ion Monitor (read-only)', short: 'MONITOR',
-    description: 'Connects to the Ion and listens for feedback. Lighting commands are blocked.',
+    label: 'Eos Monitor (read-only)', short: 'MONITOR',
+    description: 'Connects to Eos and listens for feedback. Lighting commands are blocked.',
     transmits: false, available: true,
   },
   'eos-live': {
-    label: 'Ion Live Control', short: 'LIVE',
-    description: 'Sends OSC commands to the Ion. The Ion keeps doing all DMX output.',
+    label: 'Eos Live Control', short: 'LIVE',
+    description: 'Sends OSC commands to Eos. Eos keeps doing all DMX output.',
     transmits: true, available: true,
   },
   'direct-dmx': {
     label: 'Direct DMX (sACN/Art-Net)', short: 'DMX',
-    description: 'Future Phase 5 engine through the ENTTEC ODE Mk3. Not implemented; never runs alongside Ion mode.',
+    description: 'Future Phase 5 engine through the ENTTEC ODE Mk3. Not implemented; never runs alongside Eos mode.',
     transmits: true, available: false,
   },
 };

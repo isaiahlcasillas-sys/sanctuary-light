@@ -43,9 +43,9 @@ export function LookSettings() {
     <div>
       <h4>Looks</h4>
       <div className="card" role="note">
-        <strong>Two kinds of looks.</strong> <span className="badge sim">Local look</span> lives only in Sanctuary Light: firing it changes the on-screen preview and nothing on the Ion. <span className="badge confirmed">Ion</span> looks trigger a cue, preset, macro, submaster or snapshot that already exists in the Ion show file. Editing a look here never changes the show file. Record or update cues on the Ion itself.
+        <strong>Two kinds of looks.</strong> <span className="badge sim">Local look</span> lives only in Sanctuary Light: firing it changes the on-screen preview and nothing in Eos. <span className="badge confirmed">Eos</span> looks trigger a cue, preset, macro, submaster or snapshot that already exists in the Eos show file. Editing a look here never changes the show file. Record or update cues in Eos itself.
       </div>
-      <p className="hint">Each look button can trigger one Eos action. These are proposed worship looks, not cues that exist on your Ion — map each one to a real cue, preset, macro or submaster after checking the show file. Eos presets apply to channels; they are not whole-stage scenes like Lightkey's.</p>
+      <p className="hint">Each look button can trigger one Eos action. These are proposed worship looks, not cues that exist on your Eos system — map each one to a real cue, preset, macro or submaster after checking the show file. Eos presets apply to channels; they are not whole-stage scenes like Lightkey's.</p>
       {draft.map((l) => {
         const a = l.action;
         return (

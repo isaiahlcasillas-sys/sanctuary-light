@@ -5,7 +5,7 @@
  * the Eos Family operations manual. Commands are grouped by how they reach the
  * console, and each entry notes which Eos versions it needs. Anything flagged
  * `verify: true` is documented but known to vary between versions/settings and
- * should be checked on the real Ion before a service (see docs/EOS_OSC.md).
+ * should be checked on the real Eos before a service (see docs/EOS_OSC.md).
  *
  * Notes on the command-line approach:
  *   /eos/newcmd "<text>"  clears the OSC user's command line, then types <text>.

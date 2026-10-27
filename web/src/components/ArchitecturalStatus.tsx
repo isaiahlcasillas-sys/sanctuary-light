@@ -18,9 +18,9 @@ const CONFIDENCE: Record<Confidence, { cls: string; label: string }> = {
 
 const UPSTREAM_TEXT: Record<UpstreamDevice['lossBehavior'], string> = {
   unknown: 'Not yet checked',
-  'holds-last-look': 'Holds the last look when the Ion stops',
-  'stops-output': 'Stops DMX output when the Ion stops',
-  'fades-out': 'Fades out when the Ion stops',
+  'holds-last-look': 'Holds the last look when Eos stops',
+  'stops-output': 'Stops DMX output when Eos stops',
+  'fades-out': 'Fades out when Eos stops',
 };
 
 export function ArchitecturalStatus({ onEdit }: { onEdit?(): void }) {
@@ -59,9 +59,9 @@ export function ArchitecturalStatus({ onEdit }: { onEdit?(): void }) {
           <div className="arch-cards">
             {arch.stations.map((s) => <StationCard key={s.id} s={s} />)}
           </div>
-          <h3 className="section-title" style={{ marginTop: 14 }}>Between the Ion and the lights</h3>
+          <h3 className="section-title" style={{ marginTop: 14 }}>Between Eos and the lights</h3>
           <table className="data-table">
-            <thead><tr><th>Device</th><th>Role</th><th>When the Ion stops</th><th>Feeds</th><th /></tr></thead>
+            <thead><tr><th>Device</th><th>Role</th><th>When Eos stops</th><th>Feeds</th><th /></tr></thead>
             <tbody>
               {arch.upstream.map((u) => (
                 <tr key={u.id}>
@@ -100,7 +100,7 @@ export function ArchitecturalStatus({ onEdit }: { onEdit?(): void }) {
             <tbody>
               <tr><td>Change SceneStation presets from Sanctuary Light</td><td><span className="badge err">Not available</span></td><td className="hint">No integration exists. SceneStation has no network/IP interface. Possible future paths (IR codes via an IP-to-IR adapter, or new wiring) need hardware and testing — see docs/SCENESTATION.md.</td></tr>
               <tr><td>Read SceneStation state</td><td><span className="badge err">Not available</span></td><td className="hint">Not reported anywhere this app can read.</td></tr>
-              <tr><td>House lights during services</td><td><span className="badge confirmed">Through the Ion</span></td><td className="hint">Only channels patched on the Ion, using the groups and protections in this app.</td></tr>
+              <tr><td>House lights during services</td><td><span className="badge confirmed">Through Eos</span></td><td className="hint">Only channels patched in Eos, using the groups and protections in this app.</td></tr>
               <tr><td>SceneStation Studio (programming)</td><td><span className="badge">Separate tool</span></td><td className="hint">Interactive Technologies' own Mac/Windows software with its USB RF adaptor. Not part of this app.</td></tr>
             </tbody>
           </table>

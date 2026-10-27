@@ -1,9 +1,10 @@
 import dgram from 'node:dgram';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
-import type { OscTransport } from '@sanctuary/shared';
+import { isLoopback, type OscTransport } from '@sanctuary/shared';
 import { decodePacket, encodeMessage, type OscMessage } from './codec';
 import { LengthPrefixDecoder, SlipDecoder, lengthPrefixEncode, slipEncode } from './framing';
+
 
 export interface TransportEvents {
   message: [OscMessage];
@@ -43,7 +44,7 @@ export class UdpLink extends EventEmitter<TransportEvents> implements OscLink {
     const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
     this.socket = sock;
     sock.on('message', (buf, rinfo) => {
-      if (rinfo.address !== this.opts.host && this.opts.host !== '127.0.0.1') {
+      if (rinfo.address !== this.opts.host && !isLoopback(this.opts.host)) {
         // Ignore OSC from other machines so a stray device can't fake console feedback.
         return;
       }
@@ -52,7 +53,10 @@ export class UdpLink extends EventEmitter<TransportEvents> implements OscLink {
     });
     sock.on('error', (e) => { this.emit('error', e); });
     sock.on('close', () => { this.isOpen = false; this.emit('close', 'socket closed'); });
-    sock.bind(this.opts.localPort, () => { this.isOpen = true; this.emit('open'); });
+    // When Eos runs on this same computer, listen on loopback only: nothing on the network can
+    // reach the socket, and Windows Firewall doesn't prompt.
+    const address = isLoopback(this.opts.host) ? '127.0.0.1' : undefined;
+    sock.bind({ port: this.opts.localPort, address }, () => { this.isOpen = true; this.emit('open'); });
   }
 
   send(msg: OscMessage) {

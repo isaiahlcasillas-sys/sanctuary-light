@@ -83,7 +83,7 @@ export function TopBar({ onOpenSettings, onOpenWizard }: { onOpenSettings(): voi
       <div className="spacer" />
 
       {role === 'operator' && !config?.settings.commissioning.monitorTest?.ok && (
-        <Tip label="Identify the Eos version, check the network, test in Monitor mode, then one authorized single-channel test."><button className="btn sm primary" onClick={onOpenWizard}><Wand2 size={14} />Ion setup</button></Tip>
+        <Tip label="Identify the Eos version, check the network, test in Monitor mode, then one authorized single-channel test."><button className="btn sm primary" onClick={onOpenWizard}><Wand2 size={14} />Eos setup</button></Tip>
       )}
       {role === 'operator' && (
         unlocked
@@ -120,26 +120,26 @@ export function ModeBanner() {
   const status = useApp((s) => s.status);
   const socketState = useApp((s) => s.socketState);
   if (socketState !== 'open') {
-    return <div className="banner stale" role="alert">Lost contact with the Sanctuary Light server — controls are unavailable. The Ion console continues to run normally.</div>;
+    return <div className="banner stale" role="alert">Lost contact with the Sanctuary Light server — controls are unavailable. Eos continues to run normally.</div>;
   }
   if (!status) return null;
   const c = status.connection;
   if (status.mode === 'offline') {
-    return <div className="banner offline"><ZapOff size={15} />OFFLINE SIMULATION — every control only changes the on-screen preview. Nothing is sent to the Ion.</div>;
+    return <div className="banner offline"><ZapOff size={15} />OFFLINE SIMULATION — every control only changes the on-screen preview. Nothing is sent to Eos.</div>;
   }
   // The mode banner is always shown; connection and version warnings are added below it,
   // never instead of it, so LIVE stays visible whatever else is wrong.
   const modeBanner = status.mode === 'eos-monitor'
-    ? <div className="banner monitor"><Eye size={15} />ION MONITOR (READ-ONLY) — showing console feedback. Lighting commands are blocked.{c.consoleVersion && <><span className="spacer" />Eos {c.consoleVersion}{c.showName ? ` · ${c.showName}` : ''}</>}</div>
-    : <div className="banner live" role="status"><Zap size={15} />LIVE — controls send commands to the Ion and change real lights.<span className="spacer" />{c.consoleVersion ? `Eos ${c.consoleVersion}` : ''}{c.showName ? ` · ${c.showName}` : ''}</div>;
+    ? <div className="banner monitor"><Eye size={15} />EOS MONITOR (READ-ONLY) — showing console feedback. Lighting commands are blocked.{c.consoleVersion && <><span className="spacer" />Eos {c.consoleVersion}{c.showName ? ` · ${c.showName}` : ''}</>}</div>
+    : <div className="banner live" role="status"><Zap size={15} />LIVE — controls send commands to Eos and change real lights.<span className="spacer" />{c.consoleVersion ? `Eos ${c.consoleVersion}` : ''}{c.showName ? ` · ${c.showName}` : ''}</div>;
   return (
     <div>
       {modeBanner}
       {(c.stale || c.state !== 'connected') && (
         <div className="banner stale" role="alert">
           <ShieldAlert size={15} />
-          {c.state === 'connected' ? 'Console information is STALE — no reply recently. What you see may be out of date.' : `Not connected to the Ion: ${c.detail}`}
-          <span className="spacer" /><span>Use the Ion directly if needed.</span>
+          {c.state === 'connected' ? 'Console information is STALE — no reply recently. What you see may be out of date.' : `Not connected to Eos: ${c.detail}`}
+          <span className="spacer" /><span>Use Eos directly if needed.</span>
         </div>
       )}
       {status.versionMismatch && <div className="banner stale" role="alert"><ShieldAlert size={15} />{status.versionMismatch}</div>}

@@ -7,13 +7,14 @@ Estimates assume a part-time volunteer developer plus on-site sessions at church
 * **Phase 1**: visual prototype (stage plan, faders, color, looks, cues, volunteer view).
 * **Phase 2**: Eos OSC engine (UDP / TCP 1.0 / TCP 1.1), Monitor and Live modes, feedback, safety rules.
 * **Phase 2.5**: version-aware port rules, cue-list GO/BACK, group verification, setup wizard, migration, CI on Linux and Apple Silicon macOS.
-* **Phase 3 (this branch)**: Mac deployment tooling (LaunchAgent, launcher app, sleep prevention, daily backups, health endpoint, CI smoke test on macOS); Volunteer / Worship / Architectural Status modes; SceneStation research, audit questionnaire and failure analysis; local-vs-Ion look labelling and "Save stage as look".
+* **Phase 3.2**: Windows 11 is the primary target. Sanctuary Light runs on the sanctuary PC next to ETCnomad and connects over 127.0.0.1. Adds a PowerShell installer, a start-at-sign-in scheduled task with a crash-restarting supervisor, a desktop launcher (Edge app/kiosk window), a read-only `check-windows.ps1`, and CI on `windows-latest` with a crash-recovery smoke test. Mac stays supported.
+* **Phase 3**: Mac deployment tooling (LaunchAgent, launcher app, sleep prevention, daily backups, health endpoint, CI smoke test on macOS); Volunteer / Worship / Architectural Status modes; SceneStation research, audit questionnaire and failure analysis; local-vs-Ion look labelling and "Save stage as look".
 
 ## Next
 
 | Step | Work | Who / where | Acceptance |
 |---|---|---|---|
-| **3a. Mac install** | Run `deploy/macos/install.sh` on the sanctuary Mac; set the macOS options in `MAC_DEPLOYMENT.md`; reboot and power-cut test | Lighting lead, at church | Mac reboots into Sanctuary Light in SIM with no Terminal; launcher works; log and daily backup present |
+| **3a. Windows install** | `INSTALL_WINDOWS.md` on the sanctuary PC (next to ETCnomad); power, Windows Update, sign-in options; restart test | Lighting lead, at church | PC restarts into Sanctuary Light in SIM with no Terminal; desktop icon works; `check-windows.ps1` has no [FAIL]; log and daily backup present |
 | **3b. System audit** | `SYSTEM_AUDIT.md` sections A–E, recorded in *Architectural audit* | 2–3 people, 2–3 hours, no event | Every station and node has a verified record; E3 result known |
 | **3c. Commissioning** | Setup Wizard + `COMMISSIONING.md` on the real Ion | At church, outside services | Monitor test, single-channel test, cue feedback, GO/BACK and group verification recorded |
 | **3d. Real configuration** | Import the actual patch, protected channels, Eos group numbers, map looks to real cues, draw the real room | Lighting lead | All looks are either verified Ion looks or clearly local; groups `verified` |
@@ -28,7 +29,7 @@ Estimates assume a part-time volunteer developer plus on-site sessions at church
 4. Volunteer-editable looks with operator approval before they reach Volunteer mode.
 5. **Publish local look to Ion** (record or update a cue), guarded: operator only, explicit confirmation showing the exact command text, show-file backup reminder, test on the Ion first. Build only after the Eos record syntax has been verified on our console version.
 6. Off-machine config backup (church share).
-7. Packaged, signed Mac app (Tauri/Electron) if the LaunchAgent setup proves too fiddly.
+7. Packaged, signed installer (MSI/MSIX, or Tauri/Electron) if the script-based setup proves too fiddly. A Windows service (running before sign-in) is possible but deferred: Eos itself needs a signed-in desktop session, so starting earlier gains nothing today.
 
 ## Phase 5: optional, decision required
 
@@ -39,4 +40,4 @@ Estimates assume a part-time volunteer developer plus on-site sessions at church
 
 * Controlling SceneStation through undocumented protocols.
 * Any automatic switch into Live mode, or any automatic lighting command at startup.
-* Treating the Mac as a replacement for the physical Ion before Phase 5 decisions.
+* Treating Sanctuary Light as a replacement for Eos. Eos (ETCnomad on the sanctuary PC) remains the lighting engine; volunteers just don't need to operate it directly.

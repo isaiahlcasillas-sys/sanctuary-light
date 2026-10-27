@@ -1,4 +1,4 @@
-import { checkConnectionCompat, eosCapabilities, type ConnectionSettings } from '@sanctuary/shared';
+import { checkConnectionCompat, eosCapabilities, isLoopback, type ConnectionSettings } from '@sanctuary/shared';
 import { formatMessage, type OscMessage } from '../osc/codec';
 import { TcpLink, UdpLink, type OscLink } from '../osc/transport';
 import { EosCommandBuilder, isReadOnlyAddress } from './eosCommands';
@@ -36,7 +36,7 @@ export class EosOscEngine implements OutputEngine {
     if (this.running) return;
     const s = this.settings;
     if (!eosCapabilities(s.eosVersion).known) {
-      this.setConn({ state: 'error', detail: 'Eos version not identified — run the Ion Setup Wizard (Settings → Connection) first' });
+      this.setConn({ state: 'error', detail: 'Eos version not identified — run the Eos Setup Wizard (Settings → Connection) first' });
       return;
     }
     if (!s.consoleIp) {
@@ -72,15 +72,23 @@ export class EosOscEngine implements OutputEngine {
       this.hooks.onOpen?.();
     });
     link.on('message', (m) => this.onMessage(m));
+    // A refused connection is followed by 'close'; keep its plain-language reason on screen.
+    let refusedDetail: string | null = null;
     link.on('error', (e) => {
       this.hooks.log('error', `OSC ${link.kind}: ${e.message}`);
-      this.setConn({ detail: e.message, ...(link.isOpen ? {} : { state: 'error' as const }) });
+      const refused = (e as NodeJS.ErrnoException).code === 'ECONNREFUSED';
+      const detail = refused && isLoopback(this.settings.consoleIp)
+        ? 'Eos is not answering on this computer. Is Eos (ETCnomad) open, with OSC enabled on this port? Sanctuary Light will keep retrying.'
+        : refused ? `The console refused the connection (${e.message}). Check that OSC over TCP is enabled on this port.` : e.message;
+      if (refused) refusedDetail = detail;
+      this.setConn({ detail, ...(link.isOpen ? {} : { state: 'error' as const }) });
     });
     link.on('close', (why) => {
       if (this.link !== link) return;
       this.link = null;
       if (!this.running) return;
-      this.setConn({ state: 'disconnected', detail: `Lost connection (${why}); retrying in ${Math.round(this.reconnectDelay / 1000)}s` });
+      const retry = `retrying in ${Math.round(this.reconnectDelay / 1000)}s`;
+      this.setConn({ state: 'disconnected', detail: refusedDetail ? `${refusedDetail} (${retry})` : `Lost connection (${why}); ${retry}` });
       this.hooks.log('warn', `OSC link closed: ${why}`);
       this.reconnectTimer = setTimeout(() => { this.reconnectTimer = null; if (this.running) this.openLink(); }, this.reconnectDelay);
       this.reconnectDelay = Math.min(this.reconnectDelay * 2, 15000);
@@ -184,7 +192,7 @@ export class EosOscEngine implements OutputEngine {
   }
 
   stop() {
-    // Never send anything on stop: no blackout, no release. The Ion keeps its state.
+    // Never send anything on stop: no blackout, no release. Eos keeps its state.
     this.running = false;
     if (this.heartbeat) clearInterval(this.heartbeat);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
