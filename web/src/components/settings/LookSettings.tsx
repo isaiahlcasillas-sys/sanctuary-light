@@ -1,5 +1,6 @@
 import { Camera, Plus, Trash2 } from 'lucide-react';
 import type { Look, LookAction } from '@sanctuary/shared';
+import { needsApproval } from '@sanctuary/shared';
 import { useApp } from '../../state/store';
 import { LOOK_ICONS, actionLabel } from '../LooksGrid';
 import { SaveBar, useSection } from './useSection';
@@ -56,7 +57,7 @@ export function LookSettings() {
               <select className="select" value={l.icon} aria-label="Icon" onChange={(e) => update(l.id, { icon: e.target.value })}>{Object.keys(LOOK_ICONS).map((k) => <option key={k}>{k}</option>)}</select>
               <input type="color" aria-label="Gradient start" value={l.gradient[0]} onChange={(e) => update(l.id, { gradient: [e.target.value, l.gradient[1]] })} />
               <input type="color" aria-label="Gradient end" value={l.gradient[1]} onChange={(e) => update(l.id, { gradient: [l.gradient[0], e.target.value] })} />
-              <label className="row hint"><input type="checkbox" checked={l.volunteerVisible} onChange={(e) => update(l.id, { volunteerVisible: e.target.checked })} />Volunteer</label>
+              <label className="row hint" title={needsApproval(l) && !l.approval ? 'Approve it first in Setup → Worship looks' : undefined}><input type="checkbox" checked={l.volunteerVisible} disabled={needsApproval(l) && !l.approval} onChange={(e) => update(l.id, { volunteerVisible: e.target.checked })} />Volunteer{needsApproval(l) && !l.approval ? ' (needs approval)' : ''}</label>
               <button className="btn sm" onClick={() => capture(l)}><Camera size={14} />Capture preview</button>
               <button className="btn sm icon ghost" aria-label={`Delete ${l.name}`} onClick={() => setDraft(draft.filter((x) => x.id !== l.id))}><Trash2 size={14} /></button>
             </div>

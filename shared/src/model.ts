@@ -1,5 +1,6 @@
 import type { ArchitecturalConfig } from './architecture';
 import type { CueTiming, EosShowReference } from './showImport';
+import type { VerificationRecord } from './verification';
 
 /**
  * Core data model for Sanctuary Light.
@@ -57,6 +58,8 @@ export interface Fixture {
   notes?: string;
   /** Fixture type exactly as named in the imported Eos patch. */
   eosType?: string;
+  /** Channel label exactly as it was in the imported Eos show (the local label can be renamed). */
+  eosLabel?: string;
   /** Placed in a temporary grid by an import; cleared once moved on the stage. */
   unplaced?: boolean;
 }
@@ -69,6 +72,8 @@ export interface FixtureGroup {
   /** Eos group number if this group exists in the show file; otherwise channels are addressed directly. */
   eosGroup: number | null;
   volunteerVisible: boolean;
+  /** Group label as it was in the imported Eos show. `name` is the local (volunteer-facing) name. */
+  eosLabel?: string;
 }
 
 export interface RGB { r: number; g: number; b: number }
@@ -119,7 +124,15 @@ export interface Look {
   /** How the stage preview looks when this look is fired in simulation. */
   preview: LookPreviewEntry[];
   volunteerVisible: boolean;
+  /**
+   * An operator reviewed what this look does in Eos and authorised it for Volunteer Mode.
+   * Required for any look with an Eos action: a cue, preset, sub or snapshot can do things
+   * Sanctuary Light can't see. Cleared automatically when the action changes.
+   */
+  approval?: Approval | null;
 }
+
+export interface Approval { at: number; note: string }
 
 export interface CueEntry {
   cue: string;
@@ -136,13 +149,24 @@ export interface CueListConfig {
   label: string;
   /** User-facing labels only; the Eos show file is never modified by editing these. */
   cues: CueEntry[];
+  /**
+   * An operator reviewed this whole cue list and authorised volunteers to step through it with
+   * GO/BACK. GO fires whatever cue comes next, so the approval covers the exact cue numbers
+   * present at review time; any change to them, or a re-import, withdraws it.
+   */
+  playbackApproval?: PlaybackApproval | null;
 }
+
+export interface PlaybackApproval extends Approval { cues: string[] }
 
 export interface SubmasterConfig {
   sub: number;
   label: string;
   volunteerVisible: boolean;
   protected: boolean;
+  /** Came from an Eos show import: needs an operator's approval before volunteers can use it. */
+  fromEos?: boolean;
+  approval?: Approval | null;
 }
 
 export type StageElementKind = 'platform' | 'step' | 'altar' | 'pulpit' | 'lectern' | 'choir' | 'seating' | 'screen' | 'font' | 'label';
@@ -211,6 +235,19 @@ export interface CommissioningRecord {
   /** Last time the app was seen to lose and then regain the console (recorded automatically). */
   recoveryObservedAt: number | null;
   notes: string;
+  /** First Real Connection workflow (operator confirmations; nothing here sends anything). */
+  firstConnection?: FirstConnectionRecord;
+}
+
+export interface FirstConnectionRecord {
+  /** Operator confirmed the Eos show was backed up (e.g. File → Save As to USB) today. */
+  showBackedUpAt: number | null;
+  /** Operator confirmed the imported file is a genuine export from the sanctuary's Eos. */
+  genuineExportConfirmedAt: number | null;
+  /** Operator reviewed the imported patch (Review Fixtures). */
+  patchReviewedAt: number | null;
+  /** The one approved, non-critical fixture for the supervised live test. */
+  testFixture: { channel: number; approvedBy: string; at: number } | null;
 }
 
 export interface Settings {
@@ -234,6 +271,8 @@ export interface AppConfig {
   architecture: ArchitecturalConfig;
   /** Reference data from the last Eos show import (palettes/presets, source file). null = never imported. */
   eosShow: EosShowReference | null;
+  /** Result of the last complete Show Verification against the console. null = never verified. */
+  verification: VerificationRecord | null;
 }
 
 export type OperatingMode = 'offline' | 'eos-monitor' | 'eos-live' | 'direct-dmx';

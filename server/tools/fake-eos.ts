@@ -32,13 +32,29 @@ export interface FakeEosOptions {
   version?: string;
   /** Eos groups: whole numbers or "x-y" range strings, as Eos sends them. */
   groups?: Record<number, (number | string)[]>;
+  /** Show data answered through /eos/get/patch, /eos/get/cuelist and /eos/get/cue. */
+  show?: FakeShow;
 }
+
+export interface FakeShow {
+  name: string;
+  patch: { channel: number; part?: number; label: string; manufacturer: string; model: string; address: number }[];
+  cueLists: { list: number; label: string; cues: { cue: string; label: string; part?: number }[] }[];
+}
+
+const DEFAULT_SHOW: FakeShow = {
+  name: 'FAKE SHOW (not a real console)',
+  patch: [1, 2].map((ch) => ({ channel: ch, label: `Fake ${ch}`, manufacturer: 'ETC', model: 'Fake Fixture', address: 100 + ch })),
+  cueLists: [],
+};
 
 export interface FakeEos {
   received: string[];
   ports: { slip: number | null; length: number };
   /** Change a group and notify subscribed clients, like editing it on the console. */
   setGroup(n: number, channels: (number | string)[]): void;
+  /** Replace the show data, like loading another show (name change) or editing it (notify). */
+  setShow(show: FakeShow, how: 'edit' | 'load'): void;
   /** true = keep connections open but stop answering (console frozen / cable pulled). */
   mute(on: boolean): void;
   close(): void;
@@ -61,6 +77,7 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
   const groups = new Map(Object.entries(opts.groups ?? FAKE_GROUPS).map(([k, c]) => [Number(k), c]));
   const subscribers = new Set<(r: OscMessage) => void>();
   const active = new Map<number, number>(); // cue list → active cue number
+  let show: FakeShow = opts.show ?? DEFAULT_SHOW;
 
   const cueText = (list: number, cue: number, pct?: number) => `${list}/${cue} Fake cue ${cue} 3.0${pct != null ? ` ${pct}%` : ''}`;
 
@@ -91,7 +108,7 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
     if (a === '/eos/get/version') reply({ address: '/eos/out/get/version', args: [str(version)] });
     if (a === '/eos/subscribe') {
       if (m.args[0]?.value === 1) subscribers.add(reply); else subscribers.delete(reply);
-      reply({ address: '/eos/out/show/name', args: [str('FAKE SHOW (not a real console)')] });
+      reply({ address: '/eos/out/show/name', args: [str(show.name)] });
     }
 
     let mm = a.match(/^\/eos\/cue\/(\d+)\/([\d.]+)\/fire$/);
@@ -121,13 +138,30 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
       }
     }
 
-    if (a === '/eos/get/patch/count') reply({ address: '/eos/out/get/patch/count', args: [int(2)] });
+    if (a === '/eos/get/patch/count') reply({ address: '/eos/out/get/patch/count', args: [int(show.patch.length)] });
     mm = a.match(/^\/eos\/get\/patch\/index\/(\d+)$/);
     if (mm) {
-      const ch = Number(mm[1]) + 1;
-      reply({ address: `/eos/out/get/patch/${ch}/1/list/0/6`, args: [int(Number(mm[1])), str(`uid-${ch}`), str(`Fake ${ch}`), str('ETC'), str('Fake Fixture'), int(100 + ch)] });
+      const i = Number(mm[1]);
+      const p = show.patch[i];
+      if (p) reply({ address: `/eos/out/get/patch/${p.channel}/${p.part ?? 1}/list/0/6`, args: [int(i), str(`uid-${p.channel}-${p.part ?? 1}`), str(p.label), str(p.manufacturer), str(p.model), int(p.address)] });
     }
-    if (a === '/eos/get/cuelist/count') reply({ address: '/eos/out/get/cuelist/count', args: [int(0)] });
+    if (a === '/eos/get/cuelist/count') reply({ address: '/eos/out/get/cuelist/count', args: [int(show.cueLists.length)] });
+    mm = a.match(/^\/eos\/get\/cuelist\/index\/(\d+)$/);
+    if (mm) {
+      const l = show.cueLists[Number(mm[1])];
+      if (l) reply({ address: `/eos/out/get/cuelist/${l.list}/list/0/3`, args: [int(Number(mm[1])), str(`uid-list-${l.list}`), str(l.label)] });
+    }
+    mm = a.match(/^\/eos\/get\/cue\/(\d+)\/count$/);
+    if (mm) {
+      const l = show.cueLists.find((x) => x.list === Number(mm![1]));
+      reply({ address: `/eos/out/get/cue/${mm[1]}/count`, args: [int(l?.cues.length ?? 0)] });
+    }
+    mm = a.match(/^\/eos\/get\/cue\/(\d+)\/index\/(\d+)$/);
+    if (mm) {
+      const l = show.cueLists.find((x) => x.list === Number(mm![1]));
+      const q = l?.cues[Number(mm[2])];
+      if (l && q) reply({ address: `/eos/out/get/cue/${l.list}/${q.cue}/${q.part ?? 0}/list/0/3`, args: [int(Number(mm[2])), str(`uid-cue-${l.list}-${q.cue}`), str(q.label)] });
+    }
   }
 
   function tcpServer(port: number, framing: 'slip' | 'length'): Promise<net.Server> {
@@ -168,6 +202,13 @@ export function startFakeEos(opts: FakeEosOptions = {}): Promise<FakeEos> {
       setGroup(n, channels) {
         groups.set(n, channels);
         for (const s of subscribers) s({ address: '/eos/out/notify/group/list/0/2', args: [int(1), int(n)] });
+      },
+      setShow(next, how) {
+        show = next;
+        for (const s of subscribers) {
+          if (how === 'load') s({ address: '/eos/out/show/name', args: [str(next.name)] });
+          else s({ address: '/eos/out/notify/patch/list/0/2', args: [int(1), int(1)] });
+        }
       },
       mute(on) { muted = on; },
       // Like the console rebooting: listeners and existing connections go away.

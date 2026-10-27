@@ -1,4 +1,4 @@
-import { checkConnectionCompat, isIPv4, isValidEosVersion, type AppConfig } from '@sanctuary/shared';
+import { checkConnectionCompat, isIPv4, isValidEosVersion, needsApproval, type AppConfig } from '@sanctuary/shared';
 
 export type SectionKey = keyof AppConfig;
 
@@ -64,6 +64,7 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
         if (a.type === 'preset' && (!isInt(a.preset, 1) || !isInt(a.eosGroup, 1))) return `${l.name}: preset and Eos group required`;
         if (a.type === 'sub' && (!isInt(a.sub, 1) || !(a.level >= 0 && a.level <= 100))) return `${l.name}: submaster and level 0–100 required`;
         if (a.type === 'snapshot' && !isInt(a.snapshot, 1)) return `${l.name}: snapshot number required`;
+        if (l.volunteerVisible && needsApproval(l) && !l.approval) return `“${l.name}” triggers something in Eos, so an operator must review and approve it before volunteers can see it.`;
       }
       return null;
     }
@@ -79,7 +80,10 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
     case 'submasters': {
       const list = value as AppConfig['submasters'];
       if (!Array.isArray(list)) return 'Submasters must be a list';
-      for (const s of list) if (!isInt(s.sub, 1)) return 'Submaster numbers must be positive';
+      for (const s of list) {
+        if (!isInt(s.sub, 1)) return 'Submaster numbers must be positive';
+        if (s.volunteerVisible && !s.approval) return `Sub ${s.sub} (${s.label}) moves the real Eos submaster, whatever it contains: an operator must review and approve it before volunteers can use it.`;
+      }
       return null;
     }
     case 'profiles': {
@@ -107,6 +111,12 @@ export function validateSection(key: SectionKey, value: unknown, cfg: AppConfig)
         if (!u.id || !u.name) return 'Every DMX device needs a name';
         if (!['unknown', 'holds-last-look', 'stops-output', 'fades-out'].includes(u.lossBehavior)) return `${u.name}: unknown loss behavior`;
       }
+      return null;
+    }
+    case 'verification': {
+      const v = value as AppConfig['verification'];
+      if (v === null) return null;
+      if (!v || typeof v.at !== 'number' || typeof v.fingerprint !== 'string') return 'Invalid verification record';
       return null;
     }
     case 'eosShow': {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Eye, FileUp, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
+import { Building2, Eye, FileUp, ListChecks, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
 import { MODE_INFO, type OperatingMode } from '@sanctuary/shared';
 import { logout, sendCommand, useApp } from '../state/store';
 import { ArmDialog } from './ArmDialog';
@@ -18,7 +18,8 @@ function ago(ms: number) {
   return s < 60 ? `${s}s ago` : `${Math.round(s / 60)}m ago`;
 }
 
-export function TopBar({ onOpenSettings, onOpenWizard }: { onOpenSettings(): void; onOpenWizard(): void }) {
+export function TopBar({ onOpenSettings }: { onOpenSettings(): void }) {
+  const onOpenWizard = () => useApp.getState().openWizard(0);
   const status = useApp((s) => s.status);
   const role = useApp((s) => s.role);
   const uiMode = useApp((s) => s.uiMode);
@@ -100,6 +101,7 @@ export function TopBar({ onOpenSettings, onOpenWizard }: { onOpenSettings(): voi
         <button role="radio" aria-checked={uiMode === 'volunteer'} data-on={uiMode === 'volunteer'} data-mode="offline" onClick={() => setUiMode('volunteer')}><Users size={14} />Volunteer</button>
         <button role="radio" aria-checked={uiMode === 'advanced'} data-on={uiMode === 'advanced'} data-mode="offline" onClick={goAdvanced}><Wrench size={14} />Worship</button>
         <button role="radio" aria-checked={uiMode === 'architecture'} data-on={uiMode === 'architecture'} data-mode="offline" onClick={() => setUiMode('architecture')}><Building2 size={14} />Architectural</button>
+        {role === 'operator' && <button role="radio" aria-checked={uiMode === 'setup'} data-on={uiMode === 'setup'} data-mode="offline" onClick={() => setUiMode('setup')}><ListChecks size={14} />Setup</button>}
       </div>
 
       {role
@@ -148,6 +150,14 @@ export function ModeBanner() {
         </div>
       )}
       {status.versionMismatch && <div className="banner stale" role="alert"><ShieldAlert size={15} />{status.versionMismatch}</div>}
+      {status.showWarnings.length > 0 && (
+        <div className="banner stale" role="alert">
+          <ShieldAlert size={15} />
+          <span>{status.showWarnings[0]}{status.showWarnings.length > 1 ? ` (+${status.showWarnings.length - 1} more)` : ''}</span>
+          <span className="spacer" />
+          <button className="btn sm" onClick={() => useApp.getState().goToSetup('verify')}>Verify now</button>
+        </div>
+      )}
     </div>
   );
 }

@@ -49,12 +49,15 @@ export function CuePanel({ volunteer = false }: { volunteer?: boolean }) {
           <CueCard title="Current" cue={fb?.activeCue ?? null} fallback={fallback} showProgress />
           <CueCard title="Next" cue={fb?.pendingCue ?? null} fallback={noFeedback ? 'Unknown' : '—'} />
         </div>
+        {status?.volunteerPlayback && (volunteer || role === 'volunteer'
+          ? <p className="hint" role="status">{status.volunteerPlayback}</p>
+          : <Tip label={status.volunteerPlayback}><span className="badge warn" tabIndex={0}>Volunteers can't use GO/BACK</span></Tip>)}
         <div className="go-row">
           <Tip label={`${status?.goBack.note ?? ''} BACK sends ${status?.goBack.backAddress ?? ''}`}>
-            <button className="back-btn" onClick={() => void sendCommand({ kind: 'back' })}><ChevronsLeft size={18} style={{ verticalAlign: -3 }} /> BACK</button>
+            <button className="back-btn" disabled={role === 'volunteer' && !!status?.volunteerPlayback} onClick={() => void sendCommand({ kind: 'back' })}><ChevronsLeft size={18} style={{ verticalAlign: -3 }} /> BACK</button>
           </Tip>
           <Tip label={`${status?.goBack.note ?? ''} GO sends ${status?.goBack.goAddress ?? ''}`}>
-            <button className="go-btn" onClick={() => void sendCommand({ kind: 'go' })}><Play size={22} fill="currentColor" style={{ verticalAlign: -3 }} /> GO</button>
+            <button className="go-btn" disabled={role === 'volunteer' && !!status?.volunteerPlayback} onClick={() => void sendCommand({ kind: 'go' })}><Play size={22} fill="currentColor" style={{ verticalAlign: -3 }} /> GO</button>
           </Tip>
         </div>
         {!volunteer && list && <CueTable list={list.list} editable={role === 'operator'} />}

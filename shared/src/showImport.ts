@@ -142,6 +142,12 @@ export interface ImportOptions {
   conflicts: 'use-imported' | 'keep-local';
   /** Cue list whose labelled cues become looks (each look fires that Eos cue). null = none. */
   looksFromList: number | null;
+  /**
+   * Keep stage positions already arranged in Sanctuary Light for matching channel numbers.
+   * Off by default when the current setup never came from an Eos import (sample fixtures):
+   * a sample's position is not where the real light hangs.
+   */
+  keepPositions?: boolean;
 }
 
 export function defaultImportOptions(show: ParsedShow, cfg: AppConfig): ImportOptions {
@@ -155,6 +161,7 @@ export function defaultImportOptions(show: ParsedShow, cfg: AppConfig): ImportOp
     },
     conflicts: 'use-imported',
     looksFromList,
+    keepPositions: cfg.eosShow != null,
   };
 }
 
@@ -187,6 +194,9 @@ export interface EosShowReference {
   palettes: ImportedPalette[];
   counts: { channels: number; groups: number; cueLists: number; cues: number; subs: number; palettes: number };
 }
+
+/** Top of the "not yet placed" holding area, below the stage plan. */
+export const unplacedAreaTop = (stageHeight: number) => stageHeight + 40;
 
 const RELAY_RE = /\b(relay|contactor|non[- ]?dim|nondim|utility power|house power)\b/i;
 
@@ -326,24 +336,27 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
     // Temporary grid for fixtures that have no stage position yet, ordered by first group.
     const firstGroup = new Map<number, number>();
     for (const g of show.groups) for (const c of g.channels) if (!firstGroup.has(c)) firstGroup.set(c, g.number);
-    const toPlace = show.channels.filter((c) => !localByChan.has(c.channel))
+    const keepPositions = opts.keepPositions ?? current.eosShow != null;
+    const placedLocally = (ch: number) => { const l = localByChan.get(ch); return !!l && keepPositions && !l.unplaced; };
+    const toPlace = show.channels.filter((c) => !placedLocally(c.channel))
       .sort((a, b) => (firstGroup.get(a.channel) ?? 1e9) - (firstGroup.get(b.channel) ?? 1e9) || a.channel - b.channel);
-    // Rows of fixtures along the bottom of the stage, growing upwards but never past the top.
-    const maxRows = Math.max(1, Math.floor((cfg.stage.height - 60) / 52));
-    const perRow = Math.max(Math.floor((cfg.stage.width - 80) / 56), Math.ceil(toPlace.length / maxRows), 1);
-    const dx = Math.max(12, (cfg.stage.width - 80) / perRow);
-    const dy = Math.min(52, (cfg.stage.height - 60) / Math.max(1, Math.ceil(toPlace.length / perRow)));
-    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: Math.round(60 + (i % perRow) * dx), y: Math.round(cfg.stage.height - 50 - Math.floor(i / perRow) * dy), rotation: 0 }]));
+    // An export says nothing about where lights hang, so no position is invented: new fixtures
+    // wait in a "not yet placed" holding area BELOW the stage plan until someone places them.
+    const perRow = Math.max(1, Math.floor((cfg.stage.width - 80) / 56));
+    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: 60 + (i % perRow) * 56, y: unplacedAreaTop(cfg.stage.height) + 64 + Math.floor(i / perRow) * 52, rotation: 0 }]));
     const usedIds = new Set(current.fixtures.map((f) => f.id));
 
     for (const ch of show.channels) {
       const local = localByChan.get(ch.channel);
-      // Information the export doesn't have (a USITT ASCII file has no fixture types; labels or
-      // addresses may be blank) never overwrites what Sanctuary Light already knows.
+      // Merge: information the export doesn't have (a USITT ASCII file has no fixture types;
+      // labels or addresses may be blank) never overwrites what Sanctuary Light already knows.
+      // Replace: nothing is borrowed from the setup being replaced (it may be sample data),
+      // except protections, which are always kept.
+      const known = replace ? undefined : local;
       const hinted = ch.profileHint ? cfg.profiles.find((p) => p.id === ch.profileHint || p.name.toLowerCase() === ch.profileHint!.toLowerCase())?.id : undefined;
-      const profileId = byChannel.get(ch.channel) ?? hinted ?? local?.profileId ?? 'generic';
+      const profileId = byChannel.get(ch.channel) ?? hinted ?? known?.profileId ?? 'generic';
       const relay = cfg.profiles.find((p) => p.id === profileId)?.capabilities.includes('relay') ?? false;
-      const label = ch.label || local?.label || (ch.fixtureType ? `${ch.fixtureType} ${ch.channel}` : `Channel ${ch.channel}`);
+      const label = ch.label || known?.label || (ch.fixtureType ? `${ch.fixtureType} ${ch.channel}` : `Channel ${ch.channel}`);
       let id = local?.id ?? `fx-${ch.channel}`;
       if (!local) { while (usedIds.has(id)) id = `${id}-eos`; usedIds.add(id); }
       const fromEos: Fixture = {
@@ -351,22 +364,27 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         channel: ch.channel,
         label,
         profileId,
-        dmx: ch.dmx ?? local?.dmx ?? null,
-        area: local?.area ?? suggestArea(label, relay),
+        dmx: ch.dmx ?? known?.dmx ?? null,
+        area: known?.area ?? suggestArea(label, relay),
         // Never remove a local protection; add one for relays / non-dims named in Eos.
         protected: (local?.protected ?? false) || relay || RELAY_RE.test(ch.label) || ch.protectedHint === true,
-        stage: local?.stage ?? gridPos.get(ch.channel)!,
+        stage: placedLocally(ch.channel) ? local!.stage : gridPos.get(ch.channel)!,
         // The operator's own notes win; the Eos type is kept separately in eosType.
-        notes: local?.notes || [ch.manufacturer, ch.fixtureType].filter(Boolean).join(' ') || undefined,
-        eosType: ch.fixtureType ?? local?.eosType,
-        unplaced: local ? local.unplaced : true,
+        notes: known?.notes || [ch.manufacturer, ch.fixtureType].filter(Boolean).join(' ') || undefined,
+        eosType: ch.fixtureType ?? known?.eosType,
+        // Exactly what Eos calls this channel in the export (may be empty).
+        eosLabel: ch.label,
+        unplaced: !placedLocally(ch.channel),
       };
+      if (fromEos.unplaced) unplaced.push(ch.channel);
+      // Position and placement always follow the keep-positions rule, whatever else is kept.
+      const placement = { stage: fromEos.stage, unplaced: fromEos.unplaced };
       if (!local) {
-        next.set(ch.channel, fromEos); changes.fixtures.added++; unplaced.push(ch.channel);
+        next.set(ch.channel, fromEos); changes.fixtures.added++;
         continue;
       }
       const differs = local.label !== fromEos.label || local.profileId !== fromEos.profileId || fmtDmx(local.dmx) !== fmtDmx(fromEos.dmx);
-      if (!differs) { next.set(ch.channel, { ...local, protected: fromEos.protected, eosType: fromEos.eosType }); changes.fixtures.unchanged++; continue; }
+      if (!differs) { next.set(ch.channel, { ...local, ...placement, protected: fromEos.protected, eosType: fromEos.eosType, eosLabel: fromEos.eosLabel }); changes.fixtures.unchanged++; continue; }
       if (!replace) {
         conflicts.push({
           kind: 'fixture', key: `Channel ${ch.channel}`,
@@ -375,7 +393,7 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
           resolution: useImported ? 'used-imported' : 'kept-local',
         });
       }
-      next.set(ch.channel, useImported ? fromEos : { ...local, protected: fromEos.protected });
+      next.set(ch.channel, useImported ? fromEos : { ...local, ...placement, protected: fromEos.protected });
       changes.fixtures.updated += useImported ? 1 : 0;
       changes.fixtures.unchanged += useImported ? 0 : 1;
     }
@@ -404,10 +422,11 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
       const fromEos: FixtureGroup = {
         id: local?.id ?? `grp-eos-${g.number}`, name: g.label || `Group ${g.number}`,
         color: local?.color ?? GROUP_COLORS[i % GROUP_COLORS.length], channels: [...g.channels].sort((a, b) => a - b),
-        eosGroup: g.number, volunteerVisible: local?.volunteerVisible ?? false,
+        eosGroup: g.number, volunteerVisible: local?.volunteerVisible ?? false, eosLabel: g.label,
       };
       if (!local) { out.push(fromEos); changes.groups.added++; return; }
-      if (same(local.channels, g.channels) && local.name === fromEos.name) { out.push(local); changes.groups.unchanged++; return; }
+      // A local (volunteer-facing) name is the operator's choice: only channel changes conflict.
+      if (same(local.channels, g.channels) && (local.name === fromEos.name || local.eosLabel === g.label)) { out.push({ ...local, eosLabel: g.label }); changes.groups.unchanged++; return; }
       if (!replace) {
         conflicts.push({
           kind: 'group', key: `Group ${g.number}`,
@@ -415,7 +434,10 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
           resolution: useImported ? 'used-imported' : 'kept-local',
         });
       }
-      out.push(useImported ? fromEos : local);
+      // Using Eos data updates the channels; a renamed group keeps its local name.
+      // "Renamed" = the local name differs from the name the import gave it (its Eos label, or "Group N").
+      const renamed = local.eosLabel !== undefined && local.name !== (local.eosLabel || `Group ${g.number}`);
+      out.push(useImported ? { ...fromEos, name: renamed ? local.name : fromEos.name } : { ...local, eosLabel: g.label });
       if (useImported) changes.groups.updated++; else changes.groups.unchanged++;
     });
     if (replace) {
@@ -436,6 +458,7 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
   if (opts.include.cueLists && show.cueLists.length) {
     const byList = new Map(current.cueLists.map((c) => [c.list, c]));
     const out: CueListConfig[] = replace ? [] : current.cueLists.filter((c) => !show.cueLists.some((s) => s.list === c.list));
+    const droppedPlayback: number[] = [];
     for (const l of show.cueLists) {
       const fromEos: CueListConfig = {
         list: l.list, label: l.label || `Cue list ${l.list}`,
@@ -446,15 +469,19 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         })),
       };
       const local = byList.get(l.list);
+      // Importing a cue list is never an approval: whatever Eos holds now may differ from what
+      // was reviewed, so volunteer GO/BACK approval is withdrawn for every imported list.
+      if (local?.playbackApproval) droppedPlayback.push(l.list);
       if (!local) { out.push(fromEos); changes.cueLists.added++; continue; }
       const localKey = local.cues.map((c) => `${c.cue}:${c.label}`).join('|');
       const eosKey = fromEos.cues.map((c) => `${c.cue}:${c.label}`).join('|');
-      if (localKey === eosKey) { out.push({ ...local, cues: fromEos.cues }); changes.cueLists.unchanged++; continue; }
+      if (localKey === eosKey) { out.push({ ...local, cues: fromEos.cues, playbackApproval: null }); changes.cueLists.unchanged++; continue; }
       if (!replace) conflicts.push({ kind: 'cueList', key: `Cue list ${l.list}`, local: `${local.cues.length} cues`, imported: `${l.cues.length} cues`, resolution: useImported ? 'used-imported' : 'kept-local' });
-      out.push(useImported ? fromEos : local);
+      out.push(useImported ? fromEos : { ...local, playbackApproval: null });
       if (useImported) changes.cueLists.updated++; else changes.cueLists.unchanged++;
     }
     if (replace) changes.cueLists.removed = current.cueLists.filter((c) => !show.cueLists.some((s) => s.list === c.list)).length;
+    if (droppedPlayback.length) notices.push({ severity: 'warning', message: `Volunteer GO/BACK approval withdrawn for cue list ${droppedPlayback.join(', ')}: imported cues need an operator's review again.` });
     cfg.cueLists = out.sort((a, b) => a.list - b.list);
   }
 
@@ -462,23 +489,30 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
   if (opts.include.submasters && show.subs.length) {
     const protectedChans = new Set(cfg.fixtures.filter((f) => f.protected).map((f) => f.channel));
     const bySub = new Map(current.submasters.map((s) => [s.sub, s]));
+    const hiddenSubs: number[] = [];
     const out: SubmasterConfig[] = replace ? [] : current.submasters.filter((s) => !show.subs.some((x) => x.number === s.sub));
     for (const s of show.subs) {
       const local = bySub.get(s.number);
       const touchesProtected = s.channels.some((c) => protectedChans.has(c));
+      // A submaster can control anything in Eos: volunteers need an operator's approval, so an
+      // unapproved one is hidden from Volunteer Mode until someone reviews it.
+      const approval = local?.approval ?? null;
+      const volunteerVisible = !!approval && (local?.volunteerVisible ?? false);
+      if (local?.volunteerVisible && !approval) hiddenSubs.push(s.number);
       const fromEos: SubmasterConfig = {
-        sub: s.number, label: s.label || `Sub ${s.number}`,
-        volunteerVisible: local?.volunteerVisible ?? false,
+        sub: s.number, label: s.label || `Sub ${s.number}`, volunteerVisible,
         protected: (local?.protected ?? false) || touchesProtected,
+        fromEos: true, approval,
       };
       if (!local) { out.push(fromEos); changes.submasters.added++; continue; }
-      if (local.label === fromEos.label && local.protected === fromEos.protected) { out.push(local); changes.submasters.unchanged++; continue; }
+      if (local.label === fromEos.label && local.protected === fromEos.protected) { out.push({ ...local, fromEos: true, volunteerVisible }); changes.submasters.unchanged++; continue; }
       if (!replace && local.label !== fromEos.label) conflicts.push({ kind: 'submaster', key: `Sub ${s.number}`, local: local.label, imported: fromEos.label, resolution: useImported ? 'used-imported' : 'kept-local' });
-      out.push(useImported ? fromEos : { ...local, protected: fromEos.protected });
+      out.push(useImported ? fromEos : { ...local, protected: fromEos.protected, fromEos: true, volunteerVisible });
       if (useImported) changes.submasters.updated++; else changes.submasters.unchanged++;
     }
     if (replace) changes.submasters.removed = current.submasters.filter((s) => !show.subs.some((x) => x.number === s.sub)).length;
     cfg.submasters = out.sort((a, b) => a.sub - b.sub);
+    if (hiddenSubs.length) notices.push({ severity: 'warning', message: `Submaster(s) ${hiddenSubs.join(', ')} are in the Eos show and will be hidden from volunteers until an operator reviews and approves them (Setup → Worship looks).` });
     const prot = cfg.submasters.filter((s) => s.protected && !bySub.get(s.sub)?.protected);
     if (prot.length) notices.push({ severity: 'info', message: `Submaster(s) ${prot.map((s) => s.sub).join(', ')} control protected channels and will be protected too.` });
   }
@@ -500,6 +534,7 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         action: { type: 'cue', list: list!.list, cue: q.cue },
         preview: [],
         volunteerVisible: false,
+        approval: null, // importing a cue is never approval
       });
     }
     changes.looks.added = looks.length;

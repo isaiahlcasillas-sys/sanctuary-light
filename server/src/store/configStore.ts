@@ -45,6 +45,19 @@ export function migrateConfig(raw: Partial<AppConfig>, defaults: AppConfig): { c
     },
   } as AppConfig;
   if (!config.profiles.some((p) => p.id === 'generic')) config.profiles.unshift(GENERIC_PROFILE);
+  // Volunteer approval (Phase 3.4): nothing is approved automatically. Looks that trigger Eos
+  // and submasters that volunteers could use before approvals existed are hidden from
+  // Volunteer Mode until an operator reviews them (Setup → Worship looks).
+  const hiddenLooks = config.looks.filter((l) => l.volunteerVisible && l.action.type !== 'none' && !l.approval);
+  if (hiddenLooks.length) {
+    config.looks = config.looks.map((l) => (hiddenLooks.includes(l) ? { ...l, volunteerVisible: false, approval: null } : l));
+    notes.push(`${hiddenLooks.length} volunteer look(s) that trigger Eos are hidden until an operator approves them: ${hiddenLooks.map((l) => l.name).join(', ')}.`);
+  }
+  const hiddenSubs = config.submasters.filter((s) => s.volunteerVisible && !s.approval);
+  if (hiddenSubs.length) {
+    config.submasters = config.submasters.map((s) => (hiddenSubs.includes(s) ? { ...s, volunteerVisible: false, approval: null } : s));
+    notes.push(`${hiddenSubs.length} volunteer submaster(s) are hidden until an operator approves them: ${hiddenSubs.map((s) => `Sub ${s.sub}`).join(', ')}.`);
+  }
   return { config, notes };
 }
 

@@ -3,6 +3,7 @@ import {
   BookOpen, Church, DoorOpen, Gift, HandHeart, Lamp, Mic, Music, Sparkles, Sun, Sunrise, Wine, type LucideIcon,
 } from 'lucide-react';
 import type { Look } from '@sanctuary/shared';
+import { volunteerCanUseLook } from '@sanctuary/shared';
 import { sendCommand, useApp } from '../state/store';
 import { Tip } from './ui';
 
@@ -26,7 +27,7 @@ export function actionLabel(l: Look): string {
 export function LooksGrid({ volunteer = false }: { volunteer?: boolean }) {
   const looks = useApp((s) => s.config?.looks ?? []);
   const [active, setActive] = useState<string | null>(null);
-  const visible = looks.filter((l) => !volunteer || l.volunteerVisible);
+  const visible = looks.filter((l) => !volunteer || volunteerCanUseLook(l));
   return (
     <div className="looks-grid" style={volunteer ? { gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))' } : undefined}>
       {visible.map((l) => {

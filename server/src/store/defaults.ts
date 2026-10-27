@@ -222,13 +222,14 @@ export function defaultConfig(): AppConfig {
       ],
     }],
     submasters: [
-      { sub: 1, label: 'House Lights', volunteerVisible: true, protected: false },
-      { sub: 2, label: 'Stage Wash', volunteerVisible: true, protected: false },
+      { sub: 1, label: 'House Lights', volunteerVisible: false, protected: false },
+      { sub: 2, label: 'Stage Wash', volunteerVisible: false, protected: false },
       { sub: 3, label: 'Front Light', volunteerVisible: false, protected: false },
       { sub: 4, label: 'Scenic', volunteerVisible: false, protected: false },
     ],
     stage: { width: 1200, height: 800, elements: DEFAULT_STAGE_ELEMENTS },
     architecture: defaultArchitecture(),
     eosShow: null,
+    verification: null,
   });
 }

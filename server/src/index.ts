@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { assessReadiness, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
+import { APPROVAL_STATEMENT, assessReadiness, PLAYBACK_APPROVAL_STATEMENT, cueNumbers, normalizeCueListApprovals, normalizeLookApprovals, normalizeSubApprovals, type AppConfig, type ClientMessage, type Role, type ServerMessage } from '@sanctuary/shared';
 import { Auth } from './auth';
 import { parseSleepPrevention, preventSleep } from './platform';
 import { Controller } from './controller';
@@ -75,7 +75,20 @@ app.put('/api/config/:section', operatorOnly, (req, res) => {
   if (!SECTIONS.includes(key)) { res.status(404).json({ error: 'Unknown section' }); return; }
   const prev = store.get();
   try {
-    const next = store.update(key, req.body as AppConfig[typeof key]);
+    let body = req.body as AppConfig[typeof key];
+    if (key === 'looks') {
+      // An approval covers one exact action; changing the action withdraws it.
+      const { looks, withdrawn } = normalizeLookApprovals(prev.looks, body as AppConfig['looks']);
+      body = looks as AppConfig[typeof key];
+      if (withdrawn.length) controller.log('warn', `Volunteer approval withdrawn because the Eos action changed: ${withdrawn.join(', ')}.`);
+    }
+    if (key === 'cueLists') {
+      const { cueLists, withdrawn } = normalizeCueListApprovals(prev.cueLists, body as AppConfig['cueLists']);
+      body = cueLists as AppConfig[typeof key];
+      if (withdrawn.length) controller.log('warn', `Volunteer GO/BACK approval withdrawn because the cues changed in list ${withdrawn.join(', ')}.`);
+    }
+    if (key === 'submasters') body = normalizeSubApprovals(prev.submasters, body as AppConfig['submasters']) as AppConfig[typeof key];
+    const next = store.update(key, body);
     broadcast({ t: 'config', config: next });
     controller.onConfigChanged(prev);
     controller.log('info', `Saved ${key} (local file only — the Eos show file is unchanged).`);
@@ -151,6 +164,79 @@ app.post('/api/import/eos/undo', operatorOnly, (req, res) => {
   if (req.body?.confirm !== true) { res.status(400).json({ error: 'Confirmation required' }); return; }
   const result = showImport.undoLast(req.body?.force === true);
   res.status(result.ok ? 200 : 409).json(result.ok ? result : { error: result.error, changedSince: result.changedSince ?? false });
+});
+
+// ── Show Verification (read-only comparison with the console) ──
+app.get('/api/verification', operatorOnly, (_req, res) => { res.json(controller.verificationReport()); });
+app.post('/api/verification/read', operatorOnly, (_req, res) => {
+  const r = controller.startVerification();
+  res.status(r.ok ? 200 : 409).json(r.ok ? r : { error: r.message });
+});
+
+// ── Volunteer approval of looks and imported submasters ──
+app.post('/api/approve', operatorOnly, (req, res) => {
+  const { kind, id, approve, acknowledged } = req.body ?? {};
+  if (approve && acknowledged !== true) { res.status(400).json({ error: 'Please confirm the review statement first.' }); return; }
+  const approval = approve ? { at: Date.now(), note: APPROVAL_STATEMENT } : null;
+  const prev = store.get();
+  try {
+    let next: AppConfig;
+    if (kind === 'look') {
+      const look = prev.looks.find((l) => l.id === id);
+      if (!look) { res.status(404).json({ error: 'Unknown look' }); return; }
+      next = store.update('looks', prev.looks.map((l) => (l.id === id ? { ...l, approval, volunteerVisible: approve ? l.volunteerVisible : false } : l)));
+      controller.log(approve ? 'info' : 'warn', `${approve ? 'Approved' : 'Withdrew approval of'} look “${look.name}” for Volunteer Mode.`);
+    } else if (kind === 'sub') {
+      const sub = prev.submasters.find((s) => s.sub === Number(id));
+      if (!sub) { res.status(404).json({ error: 'Unknown submaster' }); return; }
+      next = store.update('submasters', prev.submasters.map((s) => (s.sub === sub.sub ? { ...s, approval, volunteerVisible: approve ? s.volunteerVisible : false } : s)));
+      controller.log(approve ? 'info' : 'warn', `${approve ? 'Approved' : 'Withdrew approval of'} Sub ${sub.sub} (${sub.label}) for Volunteer Mode.`);
+    } else if (kind === 'cueList') {
+      const list = prev.cueLists.find((l) => l.list === Number(id));
+      if (!list) { res.status(404).json({ error: 'Unknown cue list' }); return; }
+      if (approve && !list.cues.length) { res.status(400).json({ error: `Cue list ${list.list} has no cues to review.` }); return; }
+      const playbackApproval = approve ? { at: Date.now(), note: PLAYBACK_APPROVAL_STATEMENT, cues: cueNumbers(list) } : null;
+      next = store.update('cueLists', prev.cueLists.map((l) => (l.list === list.list ? { ...l, playbackApproval } : l)));
+      controller.log(approve ? 'info' : 'warn', `${approve ? 'Approved' : 'Withdrew approval of'} cue list ${list.list} (${list.cues.length} cues) for volunteer GO/BACK.`);
+    } else { res.status(400).json({ error: 'Unknown item' }); return; }
+    broadcast({ t: 'config', config: next });
+    controller.onConfigChanged(prev, { quiet: true });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: (e as Error).message });
+  }
+});
+
+// ── First Real Connection workflow: operator confirmations (nothing is sent to Eos) ──
+app.post('/api/first-connection', operatorOnly, (req, res) => {
+  const b = req.body ?? {};
+  const cfg = store.get();
+  const now = Date.now();
+  let saved = false;
+  switch (b.step) {
+    case 'backup': saved = controller.recordFirstConnection({ showBackedUpAt: b.done ? now : null }); break;
+    case 'genuine':
+      if (b.done && !cfg.eosShow) { res.status(400).json({ error: 'Import the show from Eos first.' }); return; }
+      saved = controller.recordFirstConnection({ genuineExportConfirmedAt: b.done ? now : null }); break;
+    case 'reviewed':
+      if (b.done && !cfg.eosShow) { res.status(400).json({ error: 'Import the show from Eos first.' }); return; }
+      saved = controller.recordFirstConnection({ patchReviewedAt: b.done ? now : null }); break;
+    case 'testFixture': {
+      if (b.channel == null) { saved = controller.recordFirstConnection({ testFixture: null }); break; }
+      const f = cfg.fixtures.find((x) => x.channel === Number(b.channel));
+      const profile = f && cfg.profiles.find((p) => p.id === f.profileId);
+      const who = String(b.approvedBy ?? '').trim();
+      if (!f) { res.status(400).json({ error: `Channel ${b.channel} isn't in the patch.` }); return; }
+      if (f.protected || profile?.capabilities.includes('relay')) { res.status(400).json({ error: `Channel ${f.channel} is protected (relay or utility). Choose an ordinary light.` }); return; }
+      if (f.area === 'house' || f.area === 'utility') { res.status(400).json({ error: `Channel ${f.channel} is a house/utility light. House lights matter to SceneStation, so choose a stage or front light for the first test.` }); return; }
+      if (!who) { res.status(400).json({ error: 'Enter the name of the person who approved this test.' }); return; }
+      saved = controller.recordFirstConnection({ testFixture: { channel: f.channel, approvedBy: who.slice(0, 80), at: now } });
+      break;
+    }
+    default: res.status(400).json({ error: 'Unknown step' }); return;
+  }
+  if (!saved) { res.status(500).json({ error: 'Could not save this on the PC. See the log (Settings → Traffic Log).' }); return; }
+  res.json({ ok: true });
 });
 
 app.get('/api/patch/export', operatorOnly, (req, res) => {

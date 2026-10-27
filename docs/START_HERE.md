@@ -6,16 +6,18 @@ These guides take Sanctuary Light from "works on a computer" to "ready for a **s
 
 **Primary setup:** Sanctuary Light runs on the **sanctuary Windows 11 PC, next to Eos (ETCnomad)**, and talks to it over the PC's internal address `127.0.0.1`. Eos keeps driving the Gadget II, the wireless DMX and everything after it, exactly as today. (A Mac install is still supported: [INSTALL_MAC.md](INSTALL_MAC.md).)
 
+**The workflow:** Install Sanctuary Light → Import my Eos show → Review fixtures → Arrange sanctuary → Verify connection → Begin supervised testing. Steps 2–6 happen inside the app: sign in as operator and press **Setup** in the top bar ([SANCTUARY_SETUP.md](SANCTUARY_SETUP.md)). No Terminal or config files are needed.
+
 | Step | Guide | Where | Time | Touches real lights? |
 |---|---|---|---|---|
 | 1 | [Install on the sanctuary Windows PC](INSTALL_WINDOWS.md) | Booth PC | 45 min | No |
-| 2 | [Import your Eos show](IMPORT_EOS_SHOW.md) and arrange the stage | Booth PC | 30–60 min | No (offline file import) |
+| 2 | [Sanctuary Setup](SANCTUARY_SETUP.md): import your Eos show ([details](IMPORT_EOS_SHOW.md)), review fixtures, arrange the stage, worship looks | Booth PC | 1–2 h | No (offline) |
 | 2b | [On-site information checklist](ONSITE_CHECKLIST.md) | Booth, PC, racks | 1–2 h | No (read and photograph only) |
-| 3 | [First-day testing: Simulation → Monitor → Live](FIRST_DAY_TESTING.md) | Booth, outside worship | 2 h | Only the final, authorized single-channel step |
+| 3 | [First Real Connection](FIRST_REAL_CONNECTION.md): Monitor, Show Verification, one supervised live test ([background](FIRST_DAY_TESTING.md)) | Booth, outside worship | 2 h | Only the final, authorized single-channel step |
 | 4 | [SceneStation / house-light worksheet](SCENESTATION_WORKSHEET.md) | Sanctuary, booth | 1–2 h | Observation only. Anything disruptive needs a qualified person and a scheduled window. |
 | 5 | [Sunday readiness](SUNDAY_READINESS.md) | Booth | 30 min | No |
 
-Background: [WINDOWS_DEPLOYMENT.md](WINDOWS_DEPLOYMENT.md) explains how the pieces fit on one PC and what happens when each one fails.
+Background: [WINDOWS_DEPLOYMENT.md](WINDOWS_DEPLOYMENT.md) explains how the pieces fit on one PC and what happens when each one fails. [TESTING_EVIDENCE.md](TESTING_EVIDENCE.md) separates what has been tested in simulation from what has been confirmed on our real system (nothing yet).
 
 ## The ground rules
 
