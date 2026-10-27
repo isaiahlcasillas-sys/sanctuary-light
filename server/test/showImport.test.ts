@@ -234,10 +234,15 @@ describe('Import plan (what changes in Sanctuary Light)', () => {
     expect(keep.config.fixtures.find((f) => f.channel === 11)!.label).toBe('My pulpit');
     expect(keep.config.groups.find((g) => g.eosGroup === 2)!.channels).toEqual([1]);
     expect(keep.conflicts.map((c) => [c.kind, c.resolution])).toEqual(expect.arrayContaining([['fixture', 'kept-local'], ['group', 'kept-local']]));
-    const use = buildImportPlan(s, local, opts(s, local));
+    const use = buildImportPlan(s, local, opts(s, local, { keepPositions: true }));
     const f11 = use.config.fixtures.find((f) => f.channel === 11)!;
     expect(f11.label).toBe('Pulpit Special');
-    expect(f11.stage).toEqual({ x: 333, y: 222, rotation: 0 }); // stage position kept
+    expect(f11.stage).toEqual({ x: 333, y: 222, rotation: 0 }); // stage position kept when asked
+    // By default, positions of a setup that never came from Eos (sample fixtures) are not
+    // treated as where the real lights hang.
+    const fresh = buildImportPlan(s, local, opts(s, local));
+    expect(fresh.config.fixtures.find((f) => f.channel === 11)).toMatchObject({ unplaced: true });
+    expect(fresh.config.fixtures.find((f) => f.channel === 11)!.stage.y).toBeGreaterThan(local.stage.height);
     expect(use.config.groups.find((g) => g.eosGroup === 2)).toMatchObject({ id: 'g-mine', channels: [11, 12], volunteerVisible: true });
     const repl = buildImportPlan(s, base, opts(s, base, { mode: 'replace' }));
     expect(repl.config.fixtures.map((f) => f.channel)).toEqual(s.channels.map((c) => c.channel));

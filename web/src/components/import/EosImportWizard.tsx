@@ -259,7 +259,10 @@ function PreviewStep({ show, opts, setOpts, plan, tab, setTab, live, busy, onBac
               <label className="row"><input type="radio" name="imp-conf" checked={opts.conflicts === 'keep-local'} onChange={() => setOpts({ ...opts, conflicts: 'keep-local' })} />Keep my Sanctuary Light changes</label>
             </>
           )}
-          <p className="hint" style={{ marginTop: 8 }}>Stage positions you already arranged are kept. Protected (relay) channels stay protected. Your connection settings aren't touched.</p>
+          <label className="row" style={{ marginTop: 8 }}><input type="checkbox" checked={!!opts.keepPositions} onChange={(e) => setOpts({ ...opts, keepPositions: e.target.checked })} />
+            Keep stage positions I've already arranged (same channel numbers)</label>
+          {!opts.keepPositions && <p className="hint" style={{ margin: '2px 0 0' }}>Every imported fixture starts in "Not yet placed", so nothing ends up where a sample fixture used to be.</p>}
+          <p className="hint" style={{ marginTop: 8 }}>Protected (relay) channels stay protected. Your connection settings aren't touched.</p>
         </div>
         <div>
           <strong>What will change</strong>
@@ -455,7 +458,7 @@ function DoneStep({ show, result, onClose }: { show: ParsedShow; result: ApplyRe
       {result.unplaced.length > 0 && (
         <div className="card">
           <LayoutGrid size={16} style={{ verticalAlign: -3 }} /> <strong>{result.unplaced.length} fixtures need a place on the stage.</strong>
-          <p className="hint">An Eos export doesn't say where lights hang, so new fixtures are lined up along the bottom of the stage plan. Drag each one to where it really is.</p>
+          <p className="hint">An Eos export doesn't say where lights hang, so new fixtures wait in a "Not yet placed" area below the stage plan until you drag each one to where it really is. Sanctuary Light never guesses positions.</p>
         </div>
       )}
       <div className="row" style={{ marginTop: 14 }}>

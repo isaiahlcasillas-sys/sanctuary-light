@@ -42,7 +42,7 @@ export function fixtureFlags(f: Fixture, profile: FixtureProfile | undefined, in
   if (!inGroup) out.push({ kind: 'no-group', text: 'Not in any group', attention: false });
   if (f.unplaced) out.push({ kind: 'unplaced', text: 'Not placed on the stage yet', attention: false });
   if (f.protected) out.push({ kind: 'protected', text: 'Protected (relay/utility): needs a timed unlock', attention: false });
-  if (f.eosLabel !== undefined && f.eosLabel !== f.label) out.push({ kind: 'renamed', text: `Renamed here; in Eos it's "${f.eosLabel || '(no label)'}"`, attention: false });
+  if (f.eosLabel && f.eosLabel !== f.label) out.push({ kind: 'renamed', text: `Renamed here; in Eos it's "${f.eosLabel}"`, attention: false });
   return out;
 }
 

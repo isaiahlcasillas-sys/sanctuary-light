@@ -35,7 +35,7 @@ export function SanctuarySetup() {
 
   const go = (id: SetupStep) => {
     const st = useApp.getState();
-    if (st.editLayout && id !== 'arrange' && st.draftFixtures && JSON.stringify(st.draftFixtures) !== JSON.stringify(st.config?.fixtures)) {
+    if (st.editLayout && id !== 'arrange' && st.layoutChanged()) {
       st.toast('info', 'You have unsaved stage changes: press Save arrangement (or Discard) first.');
       return;
     }

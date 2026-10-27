@@ -45,7 +45,7 @@ export function CueSubSettings() {
             <tr key={i}>
               <td><input className="input" type="number" value={s.sub} aria-label="Submaster number" onChange={(e) => updSub(i, { sub: Number(e.target.value) })} /></td>
               <td><input className="input" value={s.label} aria-label="Submaster label" onChange={(e) => updSub(i, { label: e.target.value })} /></td>
-              <td style={{ textAlign: 'center' }}><input type="checkbox" checked={s.volunteerVisible} aria-label="Visible to volunteers" onChange={(e) => updSub(i, { volunteerVisible: e.target.checked })} /></td>
+              <td style={{ textAlign: 'center' }}><input type="checkbox" checked={s.volunteerVisible} disabled={!!s.fromEos && !s.approval} title={s.fromEos && !s.approval ? 'From the Eos show: approve it first in Setup → Worship looks' : undefined} aria-label="Visible to volunteers" onChange={(e) => updSub(i, { volunteerVisible: e.target.checked })} /></td>
               <td style={{ textAlign: 'center' }}><input type="checkbox" checked={s.protected} aria-label="Protected" onChange={(e) => updSub(i, { protected: e.target.checked })} /></td>
               <td><button className="btn sm icon ghost" aria-label="Delete submaster" onClick={() => subs.setDraft(subs.draft.filter((_, j) => j !== i))}><Trash2 size={14} /></button></td>
             </tr>

@@ -64,7 +64,9 @@ interface AppState {
   /** Set the category (area) of fixtures in the draft. */
   setDraftArea(channels: number[], area: AreaId): void;
   /** Save positions, placement and categories (local file only). */
-  saveLayout(): Promise<boolean>;
+  saveLayout(opts?: { keepEditing?: boolean }): Promise<boolean>;
+  /** The layout draft differs from what is saved (positions, placement, category). */
+  layoutChanged(): boolean;
   toast(kind: Toast['kind'], message: string): void;
   dismissToast(id: number): void;
 }
@@ -169,18 +171,29 @@ export const useApp = create<AppState>((set, get) => ({
     const set2 = new Set(channels);
     set({ draftFixtures: list.map((f) => (set2.has(f.channel) ? { ...f, area } : f)) });
   },
-  async saveLayout() {
+  layoutChanged() {
+    const { draftFixtures, draftElements, config } = get();
+    if (!config || (!draftFixtures && !draftElements)) return false;
+    const key = (list: Fixture[]) => JSON.stringify(list.map((f) => [f.id, f.stage, f.area, !!f.unplaced]));
+    return (!!draftFixtures && key(draftFixtures) !== key(config.fixtures))
+      || (!!draftElements && JSON.stringify(draftElements) !== JSON.stringify(config.stage.elements));
+  },
+  async saveLayout(opts = {}) {
     const st = get();
     const cfg = st.config;
     if (!cfg) return false;
     const draft = new Map((st.draftFixtures ?? []).map((f) => [f.id, f]));
+    const fixtures = cfg.fixtures.map((f) => {
+      const d = draft.get(f.id);
+      return d ? { ...f, stage: d.stage, area: d.area, unplaced: d.unplaced || undefined } : f;
+    });
+    const elements = st.draftElements ?? cfg.stage.elements;
     try {
-      await api.put('/api/config/fixtures', cfg.fixtures.map((f) => {
-        const d = draft.get(f.id);
-        return d ? { ...f, stage: d.stage, area: d.area, unplaced: d.unplaced || undefined } : f;
-      }));
-      await api.put('/api/config/stage', { ...cfg.stage, elements: st.draftElements ?? cfg.stage.elements });
-      set({ draftFixtures: null, draftElements: null, editLayout: false, layoutHistory: [] });
+      await api.put('/api/config/fixtures', fixtures);
+      await api.put('/api/config/stage', { ...cfg.stage, elements });
+      set(opts.keepEditing
+        ? { draftFixtures: fixtures, draftElements: elements, editLayout: true, layoutHistory: [] }
+        : { draftFixtures: null, draftElements: null, editLayout: false, layoutHistory: [] });
       st.toast('info', 'Arrangement saved on this computer. The Eos show file was not changed.');
       return true;
     } catch (e) {

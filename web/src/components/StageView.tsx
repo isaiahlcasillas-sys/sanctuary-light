@@ -172,7 +172,7 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
         <Tip label="Zoom out"><button className="btn sm icon" aria-label="Zoom out" onClick={() => zoom(1.25)}><ZoomOut size={15} /></button></Tip>
         <Tip label="Zoom in"><button className="btn sm icon" aria-label="Zoom in" onClick={() => zoom(0.8)}><ZoomIn size={15} /></button></Tip>
         <Tip label="Fit stage"><button className="btn sm icon" aria-label="Fit stage" onClick={() => setVb(null)}><Maximize size={15} /></button></Tip>
-        {!compact && role === 'operator' && (editLayout ? (
+        {!compact && !arrange && role === 'operator' && (editLayout ? (
           <>
             <button className="btn sm" onClick={() => useApp.getState().discardLayout()}><Undo2 size={14} />Discard</button>
             <button className="btn sm primary" onClick={saveLayout}><Save size={14} />Save layout</button>
@@ -181,21 +181,21 @@ export function StageView({ compact = false, highlightArea = null, arrange = fal
           <Tip label="Drag fixtures and stage pieces to match the sanctuary"><button className="btn sm" onClick={() => setEditLayout(true)}><Move size={14} />Edit layout</button></Tip>
         ))}
       </div>
-      {!compact && role === 'operator' && config && !config.eosShow && !editLayout && (
+      {!compact && !arrange && role === 'operator' && config && !config.eosShow && !editLayout && (
         <div className="arrange-bar">
           <FileUp size={15} /><span>These are <strong>sample fixtures</strong>. Bring in your real patch, groups and cues from Eos.</span>
           <span className="spacer" />
           <button className="btn sm primary" onClick={() => useApp.getState().setImportOpen(true)}>Import Eos Show</button>
         </div>
       )}
-      {!compact && role === 'operator' && unplacedCount > 0 && (
+      {!compact && !arrange && role === 'operator' && unplacedCount > 0 && (
         <div className="arrange-bar">
           <LayoutGrid size={15} />
           {editLayout
-            ? <span>Drag each <strong>highlighted</strong> fixture to where it hangs. {unplacedCount} left. Press <strong>Save layout</strong> when done (you can stop and continue later).</span>
-            : <span><strong>{unplacedCount}</strong> imported fixture(s) are lined up along the bottom of the stage and need arranging.</span>}
+            ? <span>Drag each fixture from <strong>Not yet placed</strong> (below the stage) to where it hangs. {unplacedCount} left. Press <strong>Save layout</strong> when done (you can stop and continue later).</span>
+            : <span><strong>{unplacedCount}</strong> imported fixture(s) haven't been placed on the stage yet.</span>}
           <span className="spacer" />
-          {!editLayout && <button className="btn sm primary" onClick={() => setEditLayout(true)}>Arrange now</button>}
+          {!editLayout && <button className="btn sm primary" onClick={() => useApp.getState().goToSetup('arrange')}>Arrange now</button>}
         </div>
       )}
       <div className="stage-canvas" data-edit={editLayout}

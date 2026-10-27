@@ -248,6 +248,18 @@ describe('Imported identities and arranging', () => {
     expect(cfg.fixtures.find((f) => f.channel === 11)!.eosLabel).toBe('Pulpit Special');
   });
 
+  it('Replace never borrows labels, types or positions from the (sample) setup it replaces', () => {
+    const show = parseShowFile(fs.readFileSync(path.join(__dirname, 'fixtures', 'eos-import', 'eos-export.csv')), 'x.csv');
+    const sample = defaultConfig(); // has its own channel 70 ("Relay 10", protected)
+    const plan = buildImportPlan(show, sample, { ...defaultImportOptions(show, sample), mode: 'replace' });
+    const f70 = plan.config.fixtures.find((f) => f.channel === 70)!;
+    expect(f70.label).toBe('Channel 70');           // the export has no label: not the sample's
+    expect(f70.eosLabel).toBe('');                   // exactly what Eos had
+    expect(f70.profileId).toBe('generic');
+    expect(f70.protected).toBe(true);                // protections are always kept
+    expect(plan.config.fixtures.every((f) => f.unplaced)).toBe(true); // sample positions not inherited
+  });
+
   it('puts unplaced fixtures in a holding area below the stage, not on it', () => {
     const cfg = importedConfig();
     expect(cfg.fixtures.every((f) => f.unplaced && f.stage.y > cfg.stage.height)).toBe(true);

@@ -142,6 +142,12 @@ export interface ImportOptions {
   conflicts: 'use-imported' | 'keep-local';
   /** Cue list whose labelled cues become looks (each look fires that Eos cue). null = none. */
   looksFromList: number | null;
+  /**
+   * Keep stage positions already arranged in Sanctuary Light for matching channel numbers.
+   * Off by default when the current setup never came from an Eos import (sample fixtures):
+   * a sample's position is not where the real light hangs.
+   */
+  keepPositions?: boolean;
 }
 
 export function defaultImportOptions(show: ParsedShow, cfg: AppConfig): ImportOptions {
@@ -155,6 +161,7 @@ export function defaultImportOptions(show: ParsedShow, cfg: AppConfig): ImportOp
     },
     conflicts: 'use-imported',
     looksFromList,
+    keepPositions: cfg.eosShow != null,
   };
 }
 
@@ -329,22 +336,27 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
     // Temporary grid for fixtures that have no stage position yet, ordered by first group.
     const firstGroup = new Map<number, number>();
     for (const g of show.groups) for (const c of g.channels) if (!firstGroup.has(c)) firstGroup.set(c, g.number);
-    const toPlace = show.channels.filter((c) => !localByChan.has(c.channel))
+    const keepPositions = opts.keepPositions ?? current.eosShow != null;
+    const placedLocally = (ch: number) => { const l = localByChan.get(ch); return !!l && keepPositions && !l.unplaced; };
+    const toPlace = show.channels.filter((c) => !placedLocally(c.channel))
       .sort((a, b) => (firstGroup.get(a.channel) ?? 1e9) - (firstGroup.get(b.channel) ?? 1e9) || a.channel - b.channel);
     // An export says nothing about where lights hang, so no position is invented: new fixtures
     // wait in a "not yet placed" holding area BELOW the stage plan until someone places them.
     const perRow = Math.max(1, Math.floor((cfg.stage.width - 80) / 56));
-    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: 60 + (i % perRow) * 56, y: unplacedAreaTop(cfg.stage.height) + 40 + Math.floor(i / perRow) * 52, rotation: 0 }]));
+    const gridPos = new Map(toPlace.map((c, i) => [c.channel, { x: 60 + (i % perRow) * 56, y: unplacedAreaTop(cfg.stage.height) + 64 + Math.floor(i / perRow) * 52, rotation: 0 }]));
     const usedIds = new Set(current.fixtures.map((f) => f.id));
 
     for (const ch of show.channels) {
       const local = localByChan.get(ch.channel);
-      // Information the export doesn't have (a USITT ASCII file has no fixture types; labels or
-      // addresses may be blank) never overwrites what Sanctuary Light already knows.
+      // Merge: information the export doesn't have (a USITT ASCII file has no fixture types;
+      // labels or addresses may be blank) never overwrites what Sanctuary Light already knows.
+      // Replace: nothing is borrowed from the setup being replaced (it may be sample data),
+      // except protections, which are always kept.
+      const known = replace ? undefined : local;
       const hinted = ch.profileHint ? cfg.profiles.find((p) => p.id === ch.profileHint || p.name.toLowerCase() === ch.profileHint!.toLowerCase())?.id : undefined;
-      const profileId = byChannel.get(ch.channel) ?? hinted ?? local?.profileId ?? 'generic';
+      const profileId = byChannel.get(ch.channel) ?? hinted ?? known?.profileId ?? 'generic';
       const relay = cfg.profiles.find((p) => p.id === profileId)?.capabilities.includes('relay') ?? false;
-      const label = ch.label || local?.label || (ch.fixtureType ? `${ch.fixtureType} ${ch.channel}` : `Channel ${ch.channel}`);
+      const label = ch.label || known?.label || (ch.fixtureType ? `${ch.fixtureType} ${ch.channel}` : `Channel ${ch.channel}`);
       let id = local?.id ?? `fx-${ch.channel}`;
       if (!local) { while (usedIds.has(id)) id = `${id}-eos`; usedIds.add(id); }
       const fromEos: Fixture = {
@@ -352,23 +364,27 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
         channel: ch.channel,
         label,
         profileId,
-        dmx: ch.dmx ?? local?.dmx ?? null,
-        area: local?.area ?? suggestArea(label, relay),
+        dmx: ch.dmx ?? known?.dmx ?? null,
+        area: known?.area ?? suggestArea(label, relay),
         // Never remove a local protection; add one for relays / non-dims named in Eos.
         protected: (local?.protected ?? false) || relay || RELAY_RE.test(ch.label) || ch.protectedHint === true,
-        stage: local?.stage ?? gridPos.get(ch.channel)!,
+        stage: placedLocally(ch.channel) ? local!.stage : gridPos.get(ch.channel)!,
         // The operator's own notes win; the Eos type is kept separately in eosType.
-        notes: local?.notes || [ch.manufacturer, ch.fixtureType].filter(Boolean).join(' ') || undefined,
-        eosType: ch.fixtureType ?? local?.eosType,
-        eosLabel: ch.label || local?.eosLabel,
-        unplaced: local ? local.unplaced : true,
+        notes: known?.notes || [ch.manufacturer, ch.fixtureType].filter(Boolean).join(' ') || undefined,
+        eosType: ch.fixtureType ?? known?.eosType,
+        // Exactly what Eos calls this channel in the export (may be empty).
+        eosLabel: ch.label,
+        unplaced: !placedLocally(ch.channel),
       };
+      if (fromEos.unplaced) unplaced.push(ch.channel);
+      // Position and placement always follow the keep-positions rule, whatever else is kept.
+      const placement = { stage: fromEos.stage, unplaced: fromEos.unplaced };
       if (!local) {
-        next.set(ch.channel, fromEos); changes.fixtures.added++; unplaced.push(ch.channel);
+        next.set(ch.channel, fromEos); changes.fixtures.added++;
         continue;
       }
       const differs = local.label !== fromEos.label || local.profileId !== fromEos.profileId || fmtDmx(local.dmx) !== fmtDmx(fromEos.dmx);
-      if (!differs) { next.set(ch.channel, { ...local, protected: fromEos.protected, eosType: fromEos.eosType }); changes.fixtures.unchanged++; continue; }
+      if (!differs) { next.set(ch.channel, { ...local, ...placement, protected: fromEos.protected, eosType: fromEos.eosType, eosLabel: fromEos.eosLabel }); changes.fixtures.unchanged++; continue; }
       if (!replace) {
         conflicts.push({
           kind: 'fixture', key: `Channel ${ch.channel}`,
@@ -377,7 +393,7 @@ export function buildImportPlan(show: ParsedShow, current: AppConfig, opts: Impo
           resolution: useImported ? 'used-imported' : 'kept-local',
         });
       }
-      next.set(ch.channel, useImported ? fromEos : { ...local, protected: fromEos.protected });
+      next.set(ch.channel, useImported ? fromEos : { ...local, ...placement, protected: fromEos.protected });
       changes.fixtures.updated += useImported ? 1 : 0;
       changes.fixtures.unchanged += useImported ? 0 : 1;
     }
