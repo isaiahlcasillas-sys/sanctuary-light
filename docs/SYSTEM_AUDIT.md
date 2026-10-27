@@ -68,7 +68,7 @@ Do these in order and record exactly what the lights and wall buttons did.
 | E3 | **Close Eos on the sanctuary PC** (or unplug the Ion's network/DMX output, if the Ion is used) | Did lights hold, fade or go dark? Did any SceneStation take over? After how many seconds? What did it output? |
 | E4 | With the Ion still disconnected, press each wall button | Do they work now? |
 | E5 | Reconnect the Ion | Did the Ion take back control smoothly? Any flash or jump? |
-| E6 | End Sanctuary Light only (Task Manager → `node.exe`) while in Live mode. Don't shut the PC down: that also stops Eos (E3). | **Expected: nothing changes.** Eos keeps its state. |
+| E6 | End Sanctuary Light only (`deploy\windows\restart-test.ps1 -AnyMode`, which stops only Sanctuary Light's own server) while in Live mode. Don't shut the PC down: that also stops Eos (E3). | **Expected: nothing changes.** Eos keeps its state. |
 | E7 | Power-cycle one SceneStation | Which preset came up? Did it go passive while the Ion was outputting? |
 | E8 | Simulated power cut (building procedure permitting) | Order of recovery: dimmers, nodes, wireless DMX, sanctuary PC + Eos, SceneStation, Sanctuary Light |
 

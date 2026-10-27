@@ -16,7 +16,7 @@ Eos stays the lighting engine and the fallback. Sanctuary Light sends it command
 |---|---|
 | ![Volunteer](docs/screenshots/volunteer.png) | ![Operator](docs/screenshots/operator.png) |
 
-> **Status: Phase 3.4 (Sanctuary Setup: review, arrange, worship looks, Show Verification, First Real Connection) on top of Import Eos Show and the Windows 11 deployment next to ETCnomad. Tested only against a *fake* Eos console**, with CI on Windows (x64), Linux and Apple Silicon macOS.
+> **Status: Phase 3.5 (ready to install on the sanctuary PC and work with the real show in Offline Simulation and Monitor mode). Tested only against sample files and a *fake* Eos console**, with CI on Windows (x64), Linux and Apple Silicon macOS. **Not yet tested with our physical lighting system.** Installing? Start with [`docs/INSTALLATION_READINESS.md`](docs/INSTALLATION_READINESS.md).
 > The app has **not** been connected to the real Eos system yet. On-site commissioning uses the built-in **Eos Setup Wizard**; see [`docs/START_HERE.md`](docs/START_HERE.md) and [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md). The sample patch, groups, looks and cue labels are placeholders built from the preliminary channel groupings. Nothing in them has been checked against the real show file.
 
 ---
@@ -36,10 +36,7 @@ Default PINs: **operator `1234`**, **volunteer `0000`**. Change them in *Setting
 
 ### On the sanctuary Windows PC (primary; no Terminal for volunteers)
 
-```powershell
-git clone https://github.com/isaiahlcasillas-sys/sanctuary-light C:\SanctuaryLight
-# then double-click C:\SanctuaryLight\deploy\windows\Install Sanctuary Light.cmd
-```
+Download the ZIP from GitHub (Code → Download ZIP) into `C:\SanctuaryLight`, or `git clone https://github.com/isaiahlcasillas-sys/sanctuary-light C:\SanctuaryLight`, then double-click `C:\SanctuaryLight\deploy\windows\Install Sanctuary Light.cmd`. `Check Sanctuary Light.cmd` (read-only health check) and `Uninstall Sanctuary Light.cmd` sit next to it.
 
 The installer builds and tests the app, registers a hidden **start-at-sign-in** scheduled task with a crash-restarting supervisor, keeps the PC awake while it runs, and adds a **Sanctuary Light** desktop icon that opens an Edge app window. It **always starts in Offline Simulation** and never touches Eos, the show file, the Gadget II or the wireless DMX. See [`docs/INSTALL_WINDOWS.md`](docs/INSTALL_WINDOWS.md) and [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).
 
@@ -96,6 +93,7 @@ Looks are labelled **Local look · preview only** (stored in Sanctuary Light) or
 
 | Document | Contents |
 |---|---|
+| [`docs/INSTALLATION_READINESS.md`](docs/INSTALLATION_READINESS.md) | **Installing on the sanctuary PC:** exact steps, export/import, verifying against Eos, limitations, what still needs testing, checklist for the lighting computer |
 | [`docs/START_HERE.md`](docs/START_HERE.md) | Hardware-testing roadmap for the Technical Arts Director |
 | [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md) | The Setup workflow: review fixtures, arrange the stage, worship looks and approval, Show Verification |
 | [`docs/FIRST_REAL_CONNECTION.md`](docs/FIRST_REAL_CONNECTION.md) | The supervised 7-step first connection on the sanctuary PC |
@@ -199,6 +197,7 @@ On Eos 2.0+ you can also use *Settings → Connection → Read patch & cues from
 1. **Phase 1, visual prototype** ✅: stage editor, simulated beams, faders, color wheel, CCT, pan/tilt, beam, looks, cues, volunteer mode.
 2. **Phase 2, real ETC integration** ✅ *(code complete; awaiting on-site verification)*: OSC over UDP / TCP 1.0 / TCP 1.1, monitor and live modes, cue feedback, connection testing.
    **Phase 2.5, reliability and integration** ✅: version-aware port rules (corrected 3032/3037 guidance), cue-list GO/BACK, group verification against the console, config migration, and the Ion Setup Wizard. Next step: [`docs/COMMISSIONING.md`](docs/COMMISSIONING.md) at church.
+   **Phase 3.5, Real-world installation and first sanctuary test** ✅ *(software ready; not yet run on the sanctuary PC)*: first-launch welcome, import report, guided same-PC Monitor connection, SceneStation notice, installer/uninstaller safety checks, test-suite guard against Eos ports. See [`docs/INSTALLATION_READINESS.md`](docs/INSTALLATION_READINESS.md).
    **Phase 3.4, Real sanctuary configuration and verification** ✅ *(simulation-tested; awaiting the sanctuary system)*: Setup workflow, Show Verification, volunteer approval, First Real Connection. See [`docs/SANCTUARY_SETUP.md`](docs/SANCTUARY_SETUP.md).
    **Phase 3.3, Import Eos Show** ✅ *(tested with sample exports; awaiting the real show export)*: CSV and USITT ASCII import with preview, conflicts, backup/undo, and stage arranging. See [`docs/IMPORT_EOS_SHOW.md`](docs/IMPORT_EOS_SHOW.md).
    **Phase 3.2, Windows 11 primary deployment** ✅ *(CI-verified on Windows; awaiting the sanctuary PC)*: same-PC loopback OSC to ETCnomad, Windows installer, start-at-sign-in supervisor with crash recovery, desktop launcher, read-only health check. See [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md).

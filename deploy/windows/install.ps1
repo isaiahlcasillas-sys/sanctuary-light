@@ -23,6 +23,14 @@ $ErrorActionPreference = 'Stop'
 function Fail([string]$msg) { Write-Host "ERROR: $msg" -ForegroundColor Red; exit 1 }
 function Warn([string]$msg) { Write-Host "WARNING: $msg" -ForegroundColor Yellow }
 
+Write-Host 'Sanctuary Light installer' -ForegroundColor Cyan
+Write-Host '  It WILL: download the app''s parts, build it, run its tests (simulation only), add a'
+Write-Host '          background task for this Windows user, and add desktop/Start menu icons.'
+Write-Host '  It will NOT: stop or change Eos/ETCnomad, its USB license key, the show file, the'
+Write-Host '          Gadget II, wireless DMX, SceneStation, drivers, or any light. No administrator'
+Write-Host '          rights and no restart are needed.'
+Write-Host ''
+
 if ($env:OS -ne 'Windows_NT') { Fail 'This installer is for Windows.' }
 $build = [Environment]::OSVersion.Version.Build
 if ($build -lt 22000) { Warn "This is Windows build $build. Sanctuary Light targets Windows 11 (build 22000+); Windows 10 should work but is not tested." }
@@ -33,6 +41,24 @@ if (Test-UnderOneDrive $repo) {
   Fail "The folder is inside OneDrive. OneDrive can lock or remove files while the app runs. Move it to C:\SanctuaryLight and run this again."
 }
 if ($repo -match '\\(Desktop|Downloads)(\\|$)') { Warn 'The folder is on the Desktop or in Downloads, where it is easy to delete by accident. C:\SanctuaryLight is recommended.' }
+
+# Disk space for node_modules and the build.
+$drive = Get-PSDrive -Name ($repo.Substring(0, 1)) -ErrorAction SilentlyContinue
+if ($drive -and $drive.Free -lt 1GB) { Fail "Only $([int]($drive.Free / 1MB)) MB free on drive $($drive.Name):. Sanctuary Light needs about 1 GB. Free some space and run this again." }
+
+# The interface port must be free, or used by an earlier copy of Sanctuary Light (re-install).
+$busy = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+if ($busy.Count -gt 0 -and -not (Get-Health $Port) -and -not @(Get-SanctuaryServerProcesses).Count) {
+  $owner = (Get-Process -Id $busy[0].OwningProcess -ErrorAction SilentlyContinue).ProcessName
+  Fail "Port $Port is already used by another program ($owner). Run the installer with a different port, e.g.:  install.ps1 -Port 4710"
+}
+foreach ($eosPort in 3032, 3037) {
+  if ($eosPort -eq $Port) { Fail "Port $Port is an Eos OSC port. Choose another port for Sanctuary Light (default 4700)." }
+}
+
+# Eos/ETCnomad on this PC: observed only, never stopped.
+$eosListening = @(Get-NetTCPConnection -State Listen -LocalPort 3032, 3037 -ErrorAction SilentlyContinue)
+if ($eosListening.Count -gt 0) { Write-Host "Eos OSC port(s) $(($eosListening | ForEach-Object { $_.LocalPort } | Select-Object -Unique) -join ', ') are open on this PC. The installer leaves Eos running and doesn't connect to it." }
 
 # Node.js
 $nodeCmd = Get-Command node.exe -ErrorAction SilentlyContinue
@@ -120,7 +146,10 @@ else { Warn "Installed, but the server did not answer yet. Check $($script:LogDi
 Write-Host "  Open:  the 'Sanctuary Light' icon on the desktop (or http://127.0.0.1:$Port)"
 Write-Host "  Data:  $($script:DataDir)"
 Write-Host "  Logs:  $($script:LogDir) (server.log, server-errors.log, supervisor.log)"
-Write-Host "  Check: powershell -ExecutionPolicy Bypass -File deploy\windows\check-windows.ps1"
+Write-Host "  Check: double-click deploy\windows\Check Sanctuary Light.cmd (changes nothing)"
+Write-Host ''
+Write-Host 'No restart is needed. Please do NOT restart this PC now: on the shared PC that also closes Eos.'
+Write-Host 'Sanctuary Light is in Offline Simulation: it sends nothing to Eos until you connect it yourself.'
 if ($Lan) {
   Write-Host ''
   Warn "LAN access needs a Windows Firewall rule. An administrator can add one with:"

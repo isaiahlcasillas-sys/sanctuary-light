@@ -57,7 +57,7 @@ For each test, write down **what the lights did**, **what the wall stations did*
 
 | ☐ | Scenario | How (by or with the qualified person) | Result |
 |---|---|---|---|
-| ☐ | D1. **Sanctuary Light fails** | While it's in LIVE, end Sanctuary Light only: Task Manager → Details → `node.exe`, or Task Scheduler → *Sanctuary Light* → End. **Don't shut the PC down for this test**: on the shared PC that also stops Eos (that's D2). *Not disruptive; you can do this yourself outside services.* | Expected: **nothing changes.** Sanctuary Light restarts in SIM within about 10 s. |
+| ☐ | D1. **Sanctuary Light fails** | While it's in LIVE, end Sanctuary Light only: run `deploy\windows\restart-test.ps1 -AnyMode` (it stops only Sanctuary Light's own server, never Eos or another `node.exe`, and asks first). **Don't shut the PC down for this test**: on the shared PC that also stops Eos (that's D2). *Not disruptive; you can do this yourself outside services.* | Expected: **nothing changes.** Sanctuary Light restarts in SIM within about 10 s. |
 | ☐ | D2. **Eos closed, or the sanctuary PC restarts** | Console person saves and closes Eos (later, separately: restarts the PC). Eos stops driving the Gadget II. | Gadget II outputs: hold / stop? Wireless DMX receivers: hold (how long?) / dark? SceneStations: take over? |
 | ☐ | D2b. **Wireless DMX transmitter loses DMX** | Qualified person unplugs the DMX cable into the wireless transmitter, waits 30 s, and reconnects it | What each receiver's fixtures did, and after how long |
 | ☐ | D3. **Eos network output lost** | Qualified person disconnects Eos's lighting-network cable, or disables output, then restores it | |

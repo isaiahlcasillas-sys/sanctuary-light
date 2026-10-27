@@ -27,7 +27,8 @@ async function until(fn: () => boolean, ms = 3000) {
   while (!fn()) { if (Date.now() > end) throw new Error('timed out'); await wait(20); }
 }
 const ch = (s: ParsedShow, n: number) => s.channels.find((c) => c.channel === n)!;
-const opts = (s: ParsedShow, cfg: AppConfig, patch: Partial<ImportOptions> = {}): ImportOptions => ({ ...defaultImportOptions(s, cfg), ...patch });
+// These tests exercise merging unless they ask for Replace (the default for a first import).
+const opts = (s: ParsedShow, cfg: AppConfig, patch: Partial<ImportOptions> = {}): ImportOptions => ({ ...defaultImportOptions(s, cfg), mode: 'merge', ...patch });
 
 describe('Eos CSV export', () => {
   const s = parse('eos-export.csv');

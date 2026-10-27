@@ -195,6 +195,7 @@ function PreviewStep({ show, opts, setOpts, plan, tab, setTab, live, busy, onBac
   live: boolean; busy: boolean; onBack(): void; onImport(): void;
 }) {
   const cues = show.cueLists.reduce((n, l) => n + l.cues.length, 0);
+  const firstImport = useApp((s) => s.config?.eosShow == null);
   const problems = show.issues.filter((i) => i.severity !== 'info').length;
   const fatal = show.issues.some((i) => i.severity === 'error') && !show.channels.length && !show.cueLists.length && !show.groups.length;
   const nothing = !Object.values(opts.include).some(Boolean);
@@ -250,8 +251,9 @@ function PreviewStep({ show, opts, setOpts, plan, tab, setTab, live, busy, onBac
         </div>
         <div>
           <strong>How</strong>
-          <label className="row"><input type="radio" name="imp-mode" checked={opts.mode === 'merge'} onChange={() => setOpts({ ...opts, mode: 'merge' })} />Merge with my current setup <span className="badge confirmed">recommended</span></label>
-          <label className="row"><input type="radio" name="imp-mode" checked={opts.mode === 'replace'} onChange={() => setOpts({ ...opts, mode: 'replace' })} />Replace my current setup</label>
+          <label className="row"><input type="radio" name="imp-mode" checked={opts.mode === 'merge'} onChange={() => setOpts({ ...opts, mode: 'merge' })} />Merge with my current setup {!firstImport && <span className="badge confirmed">recommended</span>}</label>
+          <label className="row"><input type="radio" name="imp-mode" checked={opts.mode === 'replace'} onChange={() => setOpts({ ...opts, mode: 'replace' })} />Replace my current setup {firstImport && <span className="badge confirmed">recommended for the first import</span>}</label>
+          {firstImport && <p className="hint">This is the first import, so Replace swaps the built-in sample fixtures for your real show. Relay protections are kept.</p>}
           {opts.mode === 'merge' && (
             <>
               <strong style={{ display: 'block', marginTop: 8 }}>When both have different data</strong>

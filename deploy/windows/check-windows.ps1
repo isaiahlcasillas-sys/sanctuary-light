@@ -73,7 +73,7 @@ if (Test-Path (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Sanctuary Li
 
 Section 'Eos / ETCnomad on this PC (observed only)'
 $eos = @(Get-Process | Where-Object { $_.ProcessName -match '^(Eos|ETCnomad)' })
-if ($eos.Count -gt 0) { Ok "Eos is running ($(($eos | ForEach-Object { $_.ProcessName }) -join ', '))" } else { Warn 'Eos does not appear to be running on this PC (expected if Eos runs on another console)' }
+if ($eos.Count -gt 0) { Ok "Eos is running ($(($eos | ForEach-Object { $_.ProcessName }) -join ', '))" } else { Warn 'No process named Eos or ETCnomad was found (a name-based guess; expected if Eos runs on another console or is closed)' }
 foreach ($p in 3032, 3037, 3038) {
   $l = @(Get-NetTCPConnection -State Listen -LocalPort $p)
   if ($l.Count -gt 0) {
@@ -116,7 +116,7 @@ if (Test-Path $sup) {
 }
 if (Test-Path $log) {
   Info "Log: $log ($([int]((Get-Item $log).Length / 1KB)) KB)"
-  if ((Get-Item $log).Length -gt 50MB) { Warn 'The log is over 50 MB. It starts fresh when Sanctuary Light restarts (sign out and in, or restart the PC).' }
+  if ((Get-Item $log).Length -gt 50MB) { Warn 'The log is over 50 MB. It starts fresh when Sanctuary Light restarts (Task Scheduler > Sanctuary Light > End, then open it from the desktop icon). Do not restart the PC or sign out for this: that also closes Eos.' }
   if (Get-Content $log -Tail 50 | Select-String -Pattern 'error|EADDRINUSE' -Quiet) { Warn "Recent errors in the log - open $log" }
 }
 

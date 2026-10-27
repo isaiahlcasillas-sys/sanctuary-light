@@ -147,7 +147,7 @@ export function ArrangeStep({ onNext }: { onNext(): void }) {
       <div className="row step-foot">
         <span className="hint">{unplaced.length ? `${unplaced.length} fixture(s) still to place. You can continue and come back later.` : 'All fixtures placed.'}</span>
         <span className="spacer" />
-        <button className="btn primary" disabled={dirty} onClick={onNext}>{dirty ? 'Save first' : <>Worship looks<ChevronRight size={16} /></>}</button>
+        <button className="btn primary" disabled={dirty} onClick={onNext}>{dirty ? 'Save first' : <>Verify with Eos<ChevronRight size={16} /></>}</button>
       </div>
     </div>
   );

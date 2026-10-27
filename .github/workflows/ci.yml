@@ -92,6 +92,15 @@ jobs:
           if ($after[0].ProcessId -eq $before[0].ProcessId) { throw 'server was not restarted' }
           if ($h.mode -ne 'offline') { throw "after restart expected offline, got $($h.mode)" }
           if (-not (Select-String -Path "$($script:LogDir)\supervisor.log" -Pattern 'restarting in' -Quiet)) { Show-Logs; throw 'supervisor did not log the restart' }
+          # 4b. The documented restart test stops only Sanctuary Light's server, never another node.exe.
+          $decoyDir = Join-Path $env:RUNNER_TEMP 'decoy'; New-Item -ItemType Directory -Force $decoyDir | Out-Null
+          $decoy = Start-Process node.exe -PassThru -WindowStyle Hidden -WorkingDirectory $decoyDir -ArgumentList @('-e', '"setInterval(()=>{},1000)"')
+          $beforeTest = @(Get-SanctuaryServerProcesses)[0].ProcessId
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\restart-test.ps1 -Port 4799
+          if ($LASTEXITCODE -ne 0) { Show-Logs; throw 'restart-test.ps1 failed' }
+          if (@(Get-SanctuaryServerProcesses)[0].ProcessId -eq $beforeTest) { throw 'restart-test.ps1 did not restart the server' }
+          if (-not (Get-Process -Id $decoy.Id -ErrorAction SilentlyContinue)) { throw 'restart-test.ps1 stopped another node.exe' }
+          Stop-Process -Id $decoy.Id
           # 5. The read-only check runs cleanly against the running server.
           powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\check-windows.ps1
           if ($LASTEXITCODE -ne 0) { throw 'check-windows.ps1 failed' }
@@ -103,3 +112,32 @@ jobs:
           if (@(Get-NetTCPConnection -State Listen -LocalPort 4799 -ErrorAction SilentlyContinue).Count) { throw 'port 4799 still in use' }
           if (-not (Get-ChildItem "$($script:DataDir)\backups" -Filter 'daily-*')) { throw 'no daily backup' }
           Show-Logs
+      - name: Windows install and uninstall (real), leaving other programs alone
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          . .\deploy\windows\common.ps1
+          # A stand-in for another program on the PC (like Eos): a node.exe outside this folder.
+          $tmp = Join-Path $env:RUNNER_TEMP 'other-app'; New-Item -ItemType Directory -Force $tmp | Out-Null
+          $other = Start-Process node.exe -PassThru -WindowStyle Hidden -WorkingDirectory $tmp -ArgumentList @('-e', '"setInterval(()=>{},1000)"')
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\install.ps1 -SkipTests -Port 4798
+          if ($LASTEXITCODE -ne 0) { throw 'install.ps1 failed' }
+          if (-not (Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue)) { throw 'scheduled task was not created' }
+          $desk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Sanctuary Light.lnk'
+          if (-not (Test-Path $desk)) { throw 'desktop shortcut was not created' }
+          # The task may not start on a CI runner (no interactive sign-in); when it does, it must be offline.
+          $h = Get-Health 4798
+          if ($h) { if ($h.mode -ne 'offline') { throw "expected offline after install, got $($h.mode)" } else { Write-Host 'Installed and running in offline mode.' } }
+          else { Write-Host 'Task registered; it did not start in this CI session (no interactive sign-in).' }
+          if (-not (Get-Process -Id $other.Id -ErrorAction SilentlyContinue)) { throw 'install stopped another program' }
+          # Uninstall: the dry run changes nothing; the real one removes only what the installer added.
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\uninstall.ps1 -DryRun
+          if (-not (Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue)) { throw 'uninstall -DryRun removed the task' }
+          powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\uninstall.ps1 -Yes
+          if (Get-ScheduledTask -TaskName $script:TaskName -ErrorAction SilentlyContinue) { throw 'task still installed after uninstall' }
+          if (Test-Path $desk) { throw 'desktop shortcut still present after uninstall' }
+          if (Get-Health 4798) { throw 'server still answering after uninstall' }
+          if (-not (Test-Path (Join-Path $script:DataDir 'config.json'))) { throw 'uninstall deleted the settings' }
+          if (-not (Get-Process -Id $other.Id -ErrorAction SilentlyContinue)) { throw 'uninstall stopped another program' }
+          Stop-Process -Id $other.Id

@@ -74,7 +74,8 @@ The Architectural page's "What happens if…" table shows the same rows, filled 
 | All PowerShell scripts parse in **Windows PowerShell 5.1** and are ASCII-only | ✅ CI | "Windows deployment smoke test" |
 | `install.ps1 -DryRun` (environment checks and scheduled-task definition) | ✅ CI | Same step |
 | The supervisor starts the server **offline** on `win32-x64`, listening on **127.0.0.1 only**, and serves the UI | ✅ CI | Same step |
-| **Crash recovery:** kill `node.exe` and the supervisor restarts it, still offline | ✅ CI | Same step |
+| **Crash recovery:** kill Sanctuary Light's server and the supervisor restarts it, still offline | ✅ CI | Same step |
+| **Restart test** (`Restart Test.cmd`) stops only Sanctuary Light's server; another `node.exe` keeps running | ✅ CI | Same step |
 | `check-windows.ps1` runs cleanly | ✅ CI | Same step |
 | UDP link binds to loopback when Eos is on the same PC; "Eos not answering on this computer" message | ✅ Unit-tested | `server/test/osc.test.ts`, `controller.test.ts` |
 | Real scheduled task at sign-in, shortcuts, Edge app window | ⚠️ Not yet run on the sanctuary PC | CI runners have no interactive sign-in |

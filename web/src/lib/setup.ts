@@ -67,7 +67,7 @@ export function setupProgress(cfg: AppConfig, groupVerification: Record<string, 
     arrange: unplaced === 0 ? { done: true, text: 'All fixtures placed' } : { done: false, text: `${unplaced} not placed yet` },
     looks: eosLooks.length && approved.length ? { done: true, text: `${approved.length} of ${eosLooks.length} approved for volunteers` } : { done: false, text: eosLooks.length ? `${eosLooks.length} look(s) waiting for review` : 'No cues assigned to looks yet' },
     verify: v && !v.simulatedConsole && (!imported || v.at > imported.importedAt)
-      ? { done: v.summary.different + v.summary['missing-in-eos'] + v.summary['extra-in-eos'] === 0, text: `Last checked ${new Date(v.at).toLocaleString()}${verifiedGroups ? ` · ${verifiedGroups} groups verified` : ''}` }
+      ? { done: v.summary.different + v.summary['missing-in-eos'] + v.summary['extra-in-eos'] + v.summary.unknown === 0, text: `Last checked ${new Date(v.at).toLocaleString()}${verifiedGroups ? ` · ${verifiedGroups} groups verified` : ''}` }
       : { done: false, text: v?.simulatedConsole ? 'Only checked against the simulator' : 'Not compared with Eos yet' },
     testing: { done: testsDone === steps.length, text: `${testsDone} of ${steps.length} steps done` },
   };

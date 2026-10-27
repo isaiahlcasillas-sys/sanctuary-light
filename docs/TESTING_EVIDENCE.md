@@ -14,6 +14,9 @@ Sanctuary Light is tested a lot. **Almost all of that testing is against simulat
 | Verification can't report success from incomplete, old or outdated data | Pure functions | Automated tests | No |
 | Whole Setup workflow in a browser | FAKE console and sample CSV, Chromium | Browser test (screenshots in `docs/screenshots/setup-*.png`) | No |
 | Windows install, supervisor, crash recovery | GitHub's Windows Server runner | CI smoke test | Partly: same Windows family, not the sanctuary PC |
+| Real install → uninstall; an unrelated program keeps running; settings kept | GitHub's Windows Server runner | CI | Partly: not the sanctuary PC, no Eos or USB key present, and the start-at-sign-in task can't be observed without an interactive sign-in |
+| Test suite can't reach Eos ports (3032, 3036, 3037, 8000, 8001) | Guard in every test run, plus its own test | Automated tests | It protects the real PC during install; it says nothing about Eos |
+| First launch → import → import report → same-PC Monitor connection → verification | FAKE Eos 3.3 on 127.0.0.1, sample CSV, Chromium | Browser test (screenshots `docs/screenshots/first-launch-welcome.png`, `setup-import-report.png`, `setup-connect-same-pc.png`, `setup-verify-same-pc.png`) | No |
 
 The FAKE console names its show "FAKE SHOW (not a real console)". Sanctuary Light recognises that name: verifications against it are marked **simulated** and never complete the First Real Connection workflow.
 
@@ -23,7 +26,8 @@ Nothing below has been confirmed yet. Add a row only with evidence from the sanc
 
 | Date | What was tested | Eos version / show | Result | Evidence | By |
 |---|---|---|---|---|---|
-| | Genuine CSV export imported (Issues tab reviewed) | | | | |
+| | Installer on the sanctuary PC with Eos open and the USB key in: Eos kept running, key still recognised | | | | |
+| | Genuine CSV export imported (Issues tab and import report reviewed) | | | | |
 | | Monitor connection on the sanctuary PC (127.0.0.1) | | | | |
 | | Show Verification against the real console | | | | |
 | | Groups verified against the real console | | | | |
