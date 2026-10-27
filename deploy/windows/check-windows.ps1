@@ -111,6 +111,7 @@ if ($latest) { Ok "Latest daily backup: $($latest.Name)" } else { Warn 'No daily
 $log = Join-Path $script:LogDir 'server.log'
 if (Test-Path $log) {
   Info "Log: $log ($([int]((Get-Item $log).Length / 1KB)) KB)"
+  if ((Get-Item $log).Length -gt 50MB) { Warn 'The log is over 50 MB. It is trimmed when Sanctuary Light restarts (sign out and in, or restart the PC).' }
   if (Get-Content $log -Tail 50 | Select-String -Pattern 'error|EADDRINUSE|exited with code' -Quiet) { Warn "Recent errors in the log - open $log" }
 }
 

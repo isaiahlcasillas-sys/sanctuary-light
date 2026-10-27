@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Eye, Lightbulb, Network, ShieldCheck, Undo2, Zap } from 'lucide-react';
 import {
-  checkConnectionCompat, describeConsoleIp, eosCapabilities, parseEosVersion, recommendConnection, sameSubnet, versionAtLeast,
+  checkConnectionCompat, describeConsoleIp, eosCapabilities, isLoopback, parseEosVersion, recommendConnection, sameSubnet, versionAtLeast,
   type LocalInterface, type Settings,
 } from '@sanctuary/shared';
 import { api } from '../lib/api';
@@ -142,7 +142,8 @@ function NetworkStep({ draft, setDraft, onSave }: { draft: Settings; setDraft(s:
   const compat = checkConnectionCompat(c);
   const onSubnet = ifaces?.filter((i) => c.consoleIp && sameSubnet(i.address, c.consoleIp, i.netmask)) ?? [];
   const allChecked = rec.consoleSteps.every((_, i) => checks[i]);
-  const sameComputer = c.consoleIp === '127.0.0.1' || c.consoleIp === 'localhost';
+  const [where, setWhere] = useState<'this' | 'other' | null>(isLoopback(c.consoleIp) ? 'this' : c.consoleIp ? 'other' : null);
+  const sameComputer = where === 'this' && isLoopback(c.consoleIp);
   const loopbackDocumented = versionAtLeast(parseEosVersion(c.eosVersion), 3, 2);
 
   return (
@@ -151,21 +152,22 @@ function NetworkStep({ draft, setDraft, onSave }: { draft: Settings; setDraft(s:
       <div className="card">
         <strong>Where does Eos run?</strong>
         <label className="row" style={{ margin: '6px 0' }}>
-          <input type="radio" name="eos-where" checked={sameComputer} onChange={() => set({ consoleIp: '127.0.0.1' })} />
+          <input type="radio" name="eos-where" checked={where === 'this'} onChange={() => { setWhere('this'); set({ consoleIp: '127.0.0.1' }); }} />
           <span><strong>On this computer</strong> (ETCnomad on the same PC as Sanctuary Light). Uses 127.0.0.1; nothing leaves this PC.</span>
         </label>
         <label className="row" style={{ margin: '6px 0' }}>
-          <input type="radio" name="eos-where" checked={!sameComputer} onChange={() => set({ consoleIp: '' })} />
+          <input type="radio" name="eos-where" checked={where === 'other'} onChange={() => { setWhere('other'); if (isLoopback(c.consoleIp)) set({ consoleIp: '' }); }} />
           <span><strong>On another console or computer</strong> (e.g. an Eos console). Its IP is in its network settings (ECU/Shell, or Setup → Device Settings → Network on 3.3+).</span>
         </label>
         {sameComputer && !loopbackDocumented && (
           <p style={{ color: 'var(--warn)' }}>127.0.0.1 is documented for Eos 3.2 and later. On Eos {c.eosVersion || 'this version'}, if the Monitor test gets no reply, use this PC's own network address instead:
-            {ifaces?.map((i) => <button key={i.address} className="btn sm" style={{ marginLeft: 6 }} onClick={() => set({ consoleIp: i.address })}>{i.address}</button>)}
+            {ifaces?.map((i) => <button key={i.address} className="btn sm" style={{ marginLeft: 6 }} onClick={() => { setWhere('other'); set({ consoleIp: i.address }); }}>{i.address}</button>)}
           </p>
         )}
       </div>
       <div className="form-grid">
-        {!sameComputer && <label className="field"><span>Eos console / computer IP address</span><input className="input" placeholder="e.g. 10.101.100.101" value={c.consoleIp} onChange={(e) => set({ consoleIp: e.target.value.trim() })} /></label>}
+        {where === null && <p className="hint" style={{ gridColumn: '1 / -1' }}>Choose where Eos runs first.</p>}
+        {where === 'other' && <label className="field"><span>Eos console / computer IP address</span><input className="input" placeholder="e.g. 10.101.100.101" value={c.consoleIp} onChange={(e) => set({ consoleIp: e.target.value.trim() })} /></label>}
         <label className="field"><span>Transport</span>
           <select className="select" value={c.transport} onChange={(e) => set({ transport: e.target.value as typeof c.transport })}>
             <option value="tcp-1.0">TCP — OSC 1.0 (packet-length)</option><option value="tcp-1.1">TCP — OSC 1.1 (SLIP)</option><option value="udp">UDP</option>
@@ -181,10 +183,11 @@ function NetworkStep({ draft, setDraft, onSave }: { draft: Settings; setDraft(s:
         {ifaces == null ? <div className="hint">Checking…</div> : ifaces.length === 0 ? <div className="hint">No network interfaces found.</div> : (
           <ul className="checklist">{ifaces.map((i) => <li key={i.name + i.address}>{i.name}: <code>{i.address}</code> / {i.netmask}{c.consoleIp && sameSubnet(i.address, c.consoleIp, i.netmask) ? ' — same subnet as Eos ✓' : ''}</li>)}</ul>
         )}
-        {c.consoleIp && ip.ok && c.consoleIp !== '127.0.0.1' && ifaces && ifaces.length > 0 && onSubnet.length === 0 && (
+        {c.consoleIp && ip.ok && !isLoopback(c.consoleIp) && ifaces && ifaces.length > 0 && onSubnet.length === 0 && (
           <p style={{ color: 'var(--warn)' }}>No interface on this computer is on the same subnet as {c.consoleIp}. Unless a router connects them, Eos will be unreachable.</p>
         )}
-        {c.transport === 'udp' && onSubnet[0] && <p className="hint">For UDP, set Eos's OSC UDP TX IP address to <code>{onSubnet[0].address}</code>.</p>}
+        {c.transport === 'udp' && sameComputer && <p className="hint">For UDP with Eos on this PC, set Eos's OSC UDP TX IP address to <code>127.0.0.1</code> (Sanctuary Light listens on loopback only). TCP is recommended.</p>}
+        {c.transport === 'udp' && !sameComputer && onSubnet[0] && <p className="hint">For UDP, set Eos's OSC UDP TX IP address to <code>{onSubnet[0].address}</code>.</p>}
       </div>
       {(compat.errors.length > 0 || compat.warnings.length > 0) && (
         <div className="card" role="alert">

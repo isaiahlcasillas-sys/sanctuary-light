@@ -23,8 +23,9 @@ Beginner install steps: [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md). The Mac remain
 
 * **Sanctuary Light never outputs DMX, sACN or Art-Net.** In Eos mode those engines don't exist (the direct-DMX engine is a stub that refuses to start). Every lighting change is an OSC command to Eos, so the Gadget II, wireless DMX and SceneStation see exactly the same kind of output they see today.
 * **Loopback OSC (`127.0.0.1`).** ETC documents loopback connections to ETCnomad for Eos 3.2 and later, provided Windows sees a working network adapter (Bitfocus/ETC notes). `check-windows.ps1` warns if no adapter is up. On Eos older than 3.2, use the PC's own lighting-network IP; the Setup Wizard offers it.
+* **Address.** Choose it explicitly in the Setup Wizard ("Where does Eos run?"). A new install has no address, so it can't connect anywhere until someone picks one.
 * **Ports.** Eos 3.1+: TCP **3037** (Third Party OSC, SLIP/OSC 1.1), recommended. Eos 2.x–3.0: TCP **3032** (OSC 1.0 by default). Never 3036 (reserved). See [EOS_OSC.md](EOS_OSC.md). On loopback, the UDP listening port must differ from Eos's UDP RX port; the app refuses a configuration where they're the same.
-* **Loopback only.** With `127.0.0.1`, the UDP socket binds to `127.0.0.1` as well, and the web server listens on `127.0.0.1` unless installed with `-Lan`. So nothing on the network can reach Sanctuary Light, and Windows Firewall never prompts.
+* **Loopback only.** With `127.0.0.1`, the UDP socket binds to `127.0.0.1` as well (so with UDP, set Eos's OSC UDP TX IP to `127.0.0.1`; TCP needs no such setting), and the web server listens on `127.0.0.1` unless installed with `-Lan`. So nothing on the network can reach Sanctuary Light, and Windows Firewall never prompts.
 * **Keyboard focus.** Keys typed into the Sanctuary Light window go to Sanctuary Light, not to Eos. Eos only receives what Sanctuary Light sends over OSC. Use a dedicated **OSC user** number (*Settings → Connection*) so Sanctuary Light's commands never land on the Eos operator's command line.
 
 ## What the installer sets up
@@ -32,7 +33,7 @@ Beginner install steps: [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md). The Mac remain
 | Piece | What | Recovery behavior |
 |---|---|---|
 | **Scheduled task "Sanctuary Light"** | Trigger: this user signs in. Runs `powershell.exe -WindowStyle Hidden -File deploy\windows\run-server.ps1`. No administrator rights. No time limit. | If the supervisor itself ever fails, Task Scheduler restarts it every minute (up to 999 times). |
-| **Supervisor** `run-server.ps1` | Runs one `node.exe --import tsx server\src\index.ts` and appends its output to `%LOCALAPPDATA%\Sanctuary Light\logs\server.log` (rotated at 5 MB). | After a **crash** (non-zero exit), it restarts the server in **10 s**. After a **clean exit** (code 0: quit, or another copy already on the port), it stops, so there's no restart loop. Tested in CI by killing the server. |
+| **Supervisor** `run-server.ps1` | Runs one `node.exe --import tsx server\src\index.ts` and appends its output to `%LOCALAPPDATA%\Sanctuary Light\logs\server.log` (trimmed at each server start once it passes 5 MB). | After a **crash** (non-zero exit), it restarts the server in **10 s**. After a **clean exit** (code 0: quit, or another copy already on the port), it stops, so there's no restart loop. Tested in CI by killing the server. |
 | **Sleep prevention** | `SetThreadExecutionState(ES_CONTINUOUS \| ES_SYSTEM_REQUIRED)` (plus `ES_DISPLAY_REQUIRED` with `-KeepDisplayOn`) | Windows releases the request automatically when the supervisor exits, so a crash can't leave the PC awake forever. |
 | **Desktop / Start menu shortcut** | `open-sanctuary-light.ps1`: checks `/api/health`, starts the task if needed (waits up to 30 s), then opens **Edge `--app=http://127.0.0.1:4700`** (`--kiosk` with `-Kiosk`) | If the server won't start, a message box says so and tells volunteers to use Eos directly. |
 | **Data** | `%LOCALAPPDATA%\Sanctuary Light` (`SANCTUARY_DATA_DIR`): config, PINs, daily snapshots, logs | Config writes are atomic, and the rename is retried if antivirus or the indexer briefly locks the file. |
@@ -62,7 +63,7 @@ The Architectural page's "What happens if…" table shows the same rows, filled 
 
 ## Updates and Windows Update
 
-* `update.ps1` refuses unless the app is in SIM and answering. It backs up the configuration and runs `git pull --ff-only`, `npm ci`, the build and the tests. If any step fails, it resets to the previous commit and rebuilds; otherwise it restarts the server in SIM.
+* `update.ps1` refuses unless the app is in SIM and answering. It backs up the configuration, runs `git pull --ff-only`, then **stops Sanctuary Light** (Windows won't let `npm ci` replace files the running server has open; Eos keeps running), and runs `npm ci`, the build and the tests. If any step fails, it resets to the previous commit, rebuilds and restarts the old version, and says clearly if that rebuild failed too. Either way, it restarts the server in SIM.
 * Windows Update: set **active hours** over service times, pause updates before major services, and don't use "Get the latest updates as soon as they're available". `check-windows.ps1` shows the current active hours.
 
 ## What is verified today

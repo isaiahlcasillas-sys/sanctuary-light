@@ -4,7 +4,8 @@
 #     automatically if this script stops, so a crash cannot leave the PC awake forever)
 #   - restarts the server after a crash (non-zero exit), waiting 10 s between attempts
 #   - stops on a clean exit (code 0: quit, or another copy is already using the port)
-#   - appends output to %LOCALAPPDATA%\Sanctuary Light\logs\server.log (rotated at 5 MB)
+#   - appends output to %LOCALAPPDATA%\Sanctuary Light\logs\server.log (rotated when over
+#     5 MB at each server start; Windows can't rename the file while the server writes it)
 # The server always starts in Offline Simulation; nothing here can arm Live control, and
 # stopping or restarting never sends anything to Eos.
 param(

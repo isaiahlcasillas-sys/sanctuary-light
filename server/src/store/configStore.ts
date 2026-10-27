@@ -157,8 +157,8 @@ export class ConfigStore {
       try { fs.renameSync(tmp, this.file); return; } catch (e) {
         const code = (e as NodeJS.ErrnoException).code;
         if (attempt >= 10 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw e;
-        const until = Date.now() + 50 * (attempt + 1);
-        while (Date.now() < until) { /* brief synchronous wait; saves are rare */ }
+        // Sleep without burning CPU (Atomics.wait blocks only this thread, briefly).
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20 * (attempt + 1));
       }
     }
   }

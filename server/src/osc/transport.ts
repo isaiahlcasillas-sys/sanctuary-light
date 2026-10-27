@@ -1,11 +1,10 @@
 import dgram from 'node:dgram';
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
-import type { OscTransport } from '@sanctuary/shared';
+import { isLoopback, type OscTransport } from '@sanctuary/shared';
 import { decodePacket, encodeMessage, type OscMessage } from './codec';
 import { LengthPrefixDecoder, SlipDecoder, lengthPrefixEncode, slipEncode } from './framing';
 
-export const isLoopback = (host: string) => host === '127.0.0.1' || host === 'localhost';
 
 export interface TransportEvents {
   message: [OscMessage];

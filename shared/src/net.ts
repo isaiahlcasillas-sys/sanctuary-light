@@ -1,5 +1,8 @@
 /** Small IPv4 helpers for the setup wizard's network check. */
 
+/** Eos runs on this same computer (ETCnomad next to Sanctuary Light). */
+export const isLoopback = (host: string | null | undefined) => host === '127.0.0.1' || host === 'localhost';
+
 export interface LocalInterface { name: string; address: string; netmask: string; cidr: string | null }
 
 const toInt = (ip: string): number | null => {

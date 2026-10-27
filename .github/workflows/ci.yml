@@ -95,7 +95,10 @@ jobs:
           powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\check-windows.ps1
           if ($LASTEXITCODE -ne 0) { throw 'check-windows.ps1 failed' }
           # 6. Clean up; daily backup was written to %LOCALAPPDATA%.
+          # Stopping (as update/restore/install do) must free the processes, files and port.
           Stop-Process -Id $sup.Id -Force
-          Get-SanctuaryServerProcesses | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+          Stop-SanctuaryServer 4799
+          if (@(Get-SanctuaryServerProcesses).Count -or @(Get-RepoHelperProcesses).Count) { throw 'server or esbuild still running after Stop-SanctuaryServer' }
+          if (@(Get-NetTCPConnection -State Listen -LocalPort 4799 -ErrorAction SilentlyContinue).Count) { throw 'port 4799 still in use' }
           if (-not (Get-ChildItem "$($script:DataDir)\backups" -Filter 'daily-*')) { throw 'no daily backup' }
           Get-Content "$($script:LogDir)\server.log" -Tail 30

@@ -72,8 +72,10 @@ Write-Host "  Shortcuts:     Desktop and Start menu 'Sanctuary Light'$(if ($Open
 if ($DryRun) { Write-Host ''; Write-Host 'Dry run OK: nothing was changed.'; exit 0 }
 
 Set-Location $repo
+# A running copy (re-install) holds files in node_modules open; Windows won't let npm replace them.
+Stop-SanctuaryServer $Port
 Write-Host ''; Write-Host 'Installing dependencies...'
-& $npm ci; if ($LASTEXITCODE -ne 0) { Fail 'npm ci failed.' }
+& $npm ci; if ($LASTEXITCODE -ne 0) { Fail 'npm ci failed (internet connection?). Sanctuary Light is stopped until this installer finishes; Eos is not affected. Run it again.' }
 Write-Host 'Building the interface...'
 & $npm run build; if ($LASTEXITCODE -ne 0) { Fail 'Build failed.' }
 if (-not $SkipTests) {
@@ -84,8 +86,7 @@ if (-not $SkipTests) {
 New-Item -ItemType Directory -Force -Path $script:DataDir, $script:LogDir | Out-Null
 [pscustomobject]@{ Port = $Port; Lan = [bool]$Lan; Kiosk = [bool]$Kiosk; Node = $node } | ConvertTo-Json | Set-Content -Path $script:SettingsFile -Encoding UTF8
 
-# Replace any previous installation's task and server.
-Stop-SanctuaryServer
+# Replace any previous installation's task.
 Unregister-ScheduledTask -TaskName $script:TaskName -Confirm:$false -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName $script:TaskName -Description 'Sanctuary Light lighting interface (starts in Offline Simulation).' `
   -Action $action -Trigger $trigger -Settings $taskSettings -Principal $principal | Out-Null

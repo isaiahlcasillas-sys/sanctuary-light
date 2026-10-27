@@ -130,7 +130,7 @@ Next: [On-site information checklist](ONSITE_CHECKLIST.md).
 | Open Sanctuary Light | Desktop icon **Sanctuary Light** (or Start menu). In any browser on this PC: `http://127.0.0.1:4700` |
 | Quit it completely | You normally don't. Closing the window leaves the server running, ready for next time. To stop the service: Task Scheduler → *Sanctuary Light* → End. **Stopping never changes the lights.** |
 | Health check | `deploy\windows\check-windows.ps1` (read-only) |
-| Update (never during a service) | `powershell -ExecutionPolicy Bypass -File deploy\windows\update.ps1`. It refuses unless the app is in SIM, backs up the settings, and rolls back automatically if anything fails. |
+| Update (never during a service) | `powershell -ExecutionPolicy Bypass -File deploy\windows\update.ps1`. It refuses unless the app is in SIM, backs up the settings, stops Sanctuary Light for a few minutes (Eos keeps running), and rolls back automatically if anything fails. |
 | Restore a backup | In the app: Settings → Backup. If the app won't start: `deploy\windows\restore-backup.ps1` (with no file name it lists the backups) |
 | Uninstall | `deploy\windows\uninstall.ps1` (keeps your settings; add `-RemoveData` to delete them too) |
 | Settings, patch, looks, PINs, backups | `%LOCALAPPDATA%\Sanctuary Light` (paste into File Explorer's address bar) |

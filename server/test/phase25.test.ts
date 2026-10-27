@@ -134,7 +134,7 @@ describe('Config migration from v0.1', () => {
     a.settings.connection.consoleIp = '10.0.0.1';
     const b = defaultConfig();
     expect(b.groups[0].channels).not.toContain(999);
-    expect(b.settings.connection.consoleIp).toBe('127.0.0.1');
+    expect(b.settings.connection.consoleIp).toBe('');
   });
 
   it('new installs start with no Eos version and refuse to connect', async () => {

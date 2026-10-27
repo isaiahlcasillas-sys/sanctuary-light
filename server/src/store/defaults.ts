@@ -188,9 +188,7 @@ export function defaultConfig(): AppConfig {
       masterCueList: 1,
       commissioning: defaultCommissioning(),
       connection: {
-        // Primary deployment: Eos (ETCnomad) on the same Windows PC. Connecting still requires a
-        // confirmed Eos version and an operator choosing Monitor or Live.
-        consoleIp: '127.0.0.1',
+        consoleIp: '',   // chosen in the Setup Wizard: 127.0.0.1 for Eos on this PC (the primary setup)
         // Most compatible TCP option (Eos 2.x and 3.x). The Setup Wizard switches to
         // 3037 / SLIP on Eos 3.1+ once the version is confirmed.
         transport: 'tcp-1.0',

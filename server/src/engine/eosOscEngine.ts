@@ -1,6 +1,6 @@
-import { checkConnectionCompat, eosCapabilities, type ConnectionSettings } from '@sanctuary/shared';
+import { checkConnectionCompat, eosCapabilities, isLoopback, type ConnectionSettings } from '@sanctuary/shared';
 import { formatMessage, type OscMessage } from '../osc/codec';
-import { TcpLink, UdpLink, isLoopback, type OscLink } from '../osc/transport';
+import { TcpLink, UdpLink, type OscLink } from '../osc/transport';
 import { EosCommandBuilder, isReadOnlyAddress } from './eosCommands';
 import { parseFeedback } from './eosFeedback';
 import type { EngineConnection, EngineHooks, OutputEngine } from './types';

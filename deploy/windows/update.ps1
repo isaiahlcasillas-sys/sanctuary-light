@@ -1,7 +1,8 @@
 # Update Sanctuary Light on the sanctuary PC. Never run during a service.
 #   powershell -ExecutionPolicy Bypass -File deploy\windows\update.ps1
 # Refuses unless the app is in Offline Simulation. Backs up the configuration first and
-# rolls the code back if installing, building or testing fails. Never touches Eos.
+# rolls the code back if installing, building or testing fails. Sanctuary Light is stopped
+# for the few minutes the update takes (Eos keeps running). Never touches Eos.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
 function Fail([string]$msg) { Write-Host "ERROR: $msg" -ForegroundColor Red; exit 1 }
@@ -30,17 +31,28 @@ git pull --ff-only
 if ($LASTEXITCODE -ne 0) { Fail 'git pull failed (local changes?). Nothing was changed.' }
 if ((git rev-parse HEAD).Trim() -eq $prev) { Write-Host 'Already up to date.'; exit 0 }
 
+# Windows won't let npm replace files the running server has open, so stop it first.
+# Stopping sends nothing to Eos. It is started again below, whatever happens.
+Write-Host 'Stopping Sanctuary Light for the update (Eos and the lights are not affected)...'
+Stop-SanctuaryServer $port
+
 function Invoke-Rollback {
   Write-Host "Update failed - returning to the previous version ($prev)." -ForegroundColor Red
   git reset -q --hard $prev
-  npm.cmd ci; npm.cmd run build
-  Write-Host 'Rolled back. The app was not restarted, so it keeps running the old version.'
+  npm.cmd ci
+  $ok = $LASTEXITCODE -eq 0
+  if ($ok) { npm.cmd run build; $ok = $LASTEXITCODE -eq 0 }
+  Start-ScheduledTask -TaskName $script:TaskName
+  if ($ok) { Write-Host 'Rolled back to the previous version and restarted it in Offline Simulation.' }
+  else {
+    Write-Host 'ROLLBACK INCOMPLETE: reinstalling the previous version failed too (network down?).' -ForegroundColor Red
+    Write-Host 'Sanctuary Light may not start. Use Eos directly, then run deploy\windows\install.ps1 when the network is back.' -ForegroundColor Red
+  }
   exit 1
 }
 npm.cmd ci;          if ($LASTEXITCODE -ne 0) { Invoke-Rollback }
 npm.cmd run build;   if ($LASTEXITCODE -ne 0) { Invoke-Rollback }
 npm.cmd test;        if ($LASTEXITCODE -ne 0) { Invoke-Rollback }
 
-Stop-SanctuaryServer
 Start-ScheduledTask -TaskName $script:TaskName
 Write-Host "Updated to $(git log -1 --format='%h %s'). The app restarted in Offline Simulation."

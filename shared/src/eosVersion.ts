@@ -10,6 +10,7 @@
  * Anything we could not confirm from ETC documentation is reported as `verify`,
  * never as supported.
  */
+import { isLoopback } from './net';
 import type { ConnectionSettings } from './model';
 
 export interface EosVersionNumber { major: number; minor: number; patch: number }
@@ -182,9 +183,9 @@ export function checkConnectionCompat(
       warnings.push('Port 3032 defaults to OSC 1.0 (packet-length). OSC 1.1 only works if the console\'s OSC TCP format is set to SLIP.');
     }
   }
-  if (c.consoleIp === '127.0.0.1') {
+  if (isLoopback(c.consoleIp)) {
     // Same-PC deployment (Eos/ETCnomad and Sanctuary Light on one computer).
-    if (!versionAtLeast(parseEosVersion(c.eosVersion), 3, 2)) warnings.push(`Connecting to Eos on this computer (127.0.0.1) is documented for Eos 3.2 and later; this is ${c.eosVersion}. If it doesn't connect, use this PC's own network address.`);
+    if (!versionAtLeast(parseEosVersion(c.eosVersion), 3, 2)) warnings.push(`Connecting to Eos on this computer (loopback) is documented for Eos 3.2 and later; this is ${c.eosVersion}. If it doesn't connect, use this PC's own network address.`);
     if (c.transport === 'udp' && c.udpLocalPort === c.udpConsolePort) errors.push(`Eos on this computer already listens on UDP ${c.udpConsolePort}. Sanctuary Light must listen on a different port (Eos "OSC UDP TX").`);
   }
   if (c.goBackMethod === 'cue-list' && caps.cueListFireStop === 'no') {

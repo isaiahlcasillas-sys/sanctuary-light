@@ -18,6 +18,9 @@ import { ConfigStore } from './store/configStore';
 import { exportCsv, importCsv, importJson } from './store/patchImport';
 import type { SectionKey } from './store/validate';
 
+// Production unless a developer says otherwise (npm start no longer sets it: cmd.exe can't).
+process.env.NODE_ENV ??= 'production';
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const dataDir = process.env.SANCTUARY_DATA_DIR ?? path.join(root, 'data');
