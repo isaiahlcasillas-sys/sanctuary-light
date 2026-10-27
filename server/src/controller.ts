@@ -179,7 +179,8 @@ export class Controller {
   pushStatus() { this.broadcast({ t: 'status', status: this.status() }); }
 
   /** Called after configuration changes. Restart the engine if connection settings changed. */
-  onConfigChanged(prev: AppConfig) {
+  /** `quiet`: a local-only change (e.g. a show import) that must not contact the console at all. */
+  onConfigChanged(prev: AppConfig, opts: { quiet?: boolean } = {}) {
     for (const f of this.cfg.fixtures) {
       if (!this.levels[f.channel]) { this.levels[f.channel] = { intensity: 0 }; this.sources[f.channel] = 'simulated'; }
     }
@@ -189,7 +190,7 @@ export class Controller {
       const mode = this.mode;
       this.stopEngine();
       this.startEngine(mode === 'eos-live');
-    } else if (JSON.stringify(prev.groups) !== JSON.stringify(this.cfg.groups)) {
+    } else if (!opts.quiet && JSON.stringify(prev.groups) !== JSON.stringify(this.cfg.groups)) {
       this.requestGroupVerification();
     }
     this.pushStatus();

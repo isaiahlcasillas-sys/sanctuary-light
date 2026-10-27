@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Download, RotateCcw, Upload } from 'lucide-react';
+import { Download, RotateCcw, Undo2, Upload } from 'lucide-react';
 import { api, downloadText } from '../../lib/api';
 import { useApp } from '../../state/store';
 import { Confirm } from '../ui';
@@ -7,6 +7,8 @@ import { Confirm } from '../ui';
 export function BackupSettings() {
   const [restore, setRestore] = useState<unknown>(null);
   const [reset, setReset] = useState(false);
+  const [undoImport, setUndoImport] = useState(false);
+  const eosShow = useApp((s) => s.config?.eosShow);
   const fileRef = useRef<HTMLInputElement>(null);
   const toast = useApp.getState().toast;
 
@@ -27,6 +29,7 @@ export function BackupSettings() {
           try { setRestore(JSON.parse(await f.text())); } catch { toast('error', 'That file is not valid JSON'); }
         }} />
         <button className="btn" onClick={() => fileRef.current?.click()}><Upload size={16} />Restore from file…</button>
+        {eosShow && <button className="btn" onClick={() => setUndoImport(true)}><Undo2 size={16} />Undo last Eos import</button>}
         <button className="btn danger" onClick={() => setReset(true)}><RotateCcw size={16} />Reset to sample configuration</button>
       </div>
       <Confirm open={restore !== null} onOpenChange={(o) => !o && setRestore(null)} danger title="Restore this backup?" confirmLabel="Restore"
@@ -35,6 +38,12 @@ export function BackupSettings() {
           try { await api.post('/api/restore', { confirm: true, backup: restore }); toast('info', 'Backup restored.'); }
           catch (e) { toast('error', (e as Error).message); }
           setRestore(null);
+        }} />
+      <Confirm open={undoImport} onOpenChange={setUndoImport} danger title="Undo the last Eos import?" confirmLabel="Undo import"
+        body={<>Puts back the setup from before importing <strong>{eosShow?.fileName}</strong>. The current configuration is backed up first. Eos is not affected.</>}
+        onConfirm={async () => {
+          try { await api.post('/api/import/eos/undo', { confirm: true }); toast('info', 'Import undone.'); }
+          catch (e) { toast('error', (e as Error).message); }
         }} />
       <Confirm open={reset} onOpenChange={setReset} danger title="Reset to the sample configuration?" confirmLabel="Reset"
         body="Replaces everything with the built-in LTUMC sample patch and looks. The current configuration is backed up first."

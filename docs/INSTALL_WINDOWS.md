@@ -119,7 +119,7 @@ It changes nothing. Fix every **[FAIL]**, and decide on each **[WARN]** using th
 - ☐ `check-windows.ps1`: no [FAIL] except items you've consciously decided on
 - ☐ After a restart, Sanctuary Light came back by itself in SIM
 
-Next: [On-site information checklist](ONSITE_CHECKLIST.md).
+Next: [Import your Eos show](IMPORT_EOS_SHOW.md), so Sanctuary Light uses your real patch, groups and cues. Then the [On-site information checklist](ONSITE_CHECKLIST.md).
 
 ---
 

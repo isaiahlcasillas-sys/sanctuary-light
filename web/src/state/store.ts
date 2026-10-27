@@ -27,6 +27,12 @@ interface AppState {
   lastResult: CommandResult | null;
   /** Wall-clock offset between this browser and the server. */
   clockSkew: number;
+  /** The Import Eos Show wizard is open. */
+  importOpen: boolean;
+
+  setImportOpen(open: boolean): void;
+  /** After an import: go to the stage and start arranging fixtures. */
+  startArranging(): void;
 
   setUiMode(m: UiMode): void;
   select(channels: number[], mode?: 'replace' | 'toggle' | 'add'): void;
@@ -56,6 +62,14 @@ export const useApp = create<AppState>((set, get) => ({
   toasts: [],
   lastResult: null,
   clockSkew: 0,
+  importOpen: false,
+
+  setImportOpen(open) { set({ importOpen: open }); },
+  startArranging() {
+    localStorageSet('sl-ui-mode', 'advanced');
+    set({ importOpen: false, uiMode: 'advanced' });
+    get().setEditLayout(true);
+  },
 
   setUiMode(m) { localStorageSet('sl-ui-mode', m); set({ uiMode: m }); },
   select(channels, mode = 'replace') {
@@ -73,7 +87,7 @@ export const useApp = create<AppState>((set, get) => ({
   },
   moveFixture(id, x, y) {
     const list = get().draftFixtures; if (!list) return;
-    set({ draftFixtures: list.map((f) => (f.id === id ? { ...f, stage: { ...f.stage, x, y } } : f)) });
+    set({ draftFixtures: list.map((f) => (f.id === id ? { ...f, stage: { ...f.stage, x, y }, unplaced: false } : f)) });
   },
   rotateFixture(id, rotation) {
     const list = get().draftFixtures; if (!list) return;

@@ -12,6 +12,7 @@ import { Toasts } from './components/Toasts';
 import { SetupWizard } from './components/SetupWizard';
 import { ArchitecturalStatus } from './components/ArchitecturalStatus';
 import { SaveLookButton } from './components/SaveLookButton';
+import { EosImportWizard } from './components/import/EosImportWizard';
 
 export function App() {
   const config = useApp((s) => s.config);
@@ -50,6 +51,7 @@ export function App() {
       )}
       {role === 'operator' && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} initialTab={settingsTab} onOpenWizard={() => setWizardOpen(true)} />}
       {role === 'operator' && <SetupWizard open={wizardOpen} onOpenChange={setWizardOpen} />}
+      {role === 'operator' && <EosImportWizard />}
       <Toasts />
     </div>
   );

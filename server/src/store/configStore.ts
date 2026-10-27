@@ -107,6 +107,37 @@ export class ConfigStore {
     return next;
   }
 
+  /**
+   * Save the result of an Eos show import. Validates every section first, then keeps a
+   * named copy of the previous configuration (pre-import-…json, not pruned with the per-save
+   * backups). Returns the backup's file name.
+   */
+  applyImport(next: AppConfig): string {
+    for (const key of Object.keys(next) as SectionKey[]) {
+      const err = validateSection(key, next[key], next);
+      if (err) throw new Error(`${key}: ${err}`);
+    }
+    const name = `pre-import-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    fs.writeFileSync(path.join(this.backupDir, name), JSON.stringify(this.config, null, 2));
+    this.config = next;
+    this.writeFile(next);
+    return name;
+  }
+
+  /**
+   * Undo the most recent Eos import: restore its pre-import backup (the current configuration is
+   * backed up first, as with any restore). The used backup is renamed so it isn't applied twice.
+   * Returns the restored file name, or null when there is nothing to undo.
+   */
+  undoLastImport(): string | null {
+    const name = fs.readdirSync(this.backupDir).filter((f) => /^pre-import-.*\.json$/.test(f)).sort().pop();
+    if (!name) return null;
+    const file = path.join(this.backupDir, name);
+    this.replaceAll(JSON.parse(fs.readFileSync(file, 'utf8')) as AppConfig);
+    fs.renameSync(file, path.join(this.backupDir, `used-${name}`));
+    return name;
+  }
+
   resetToDefaults(): AppConfig {
     this.backup();
     this.config = defaultConfig();

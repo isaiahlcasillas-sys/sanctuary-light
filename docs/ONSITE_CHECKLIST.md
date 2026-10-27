@@ -52,13 +52,13 @@ Find these in the Ion's network settings. On Eos 2.x–3.2 they're in the **ECU 
 | ☐ | Same subnet as the Ion? | First three numbers usually match (e.g. 10.101.100.x), depending on the subnet mask | |
 | ☐ | Is this network separate from office and guest Wi-Fi? | Ask whoever manages church IT | |
 
-## 4. The Ion patch (the list of channels)
+## 4. The Eos patch (the list of channels)
 
 Choose **one** of these ways to get a copy:
 
 | ☐ | Method | Notes |
 |---|---|---|
-| ☐ | **Export from the Ion** to USB, if your Eos version offers it (*File → Export → CSV* or *USITT ASCII*) | Bring the file to the Mac. Import it in *Settings → Patch → Import*. Check the preview before applying. |
+| ☐ | **Export from Eos** (*File → Export → CSV*, or *USITT ASCII*) | On the sanctuary PC, save it to a folder; from the Ion, to USB. Then use **Import Eos Show** in Sanctuary Light ([guide](IMPORT_EOS_SHOW.md)): it brings in the patch, groups, cues, presets and subs together. |
 | ☐ | **Read it over the network** with Sanctuary Light (Eos 2.x and later) | Only in **MONITOR** mode on test day: *Settings → Connection → Read patch & cues*. Read-only. |
 | ☐ | **Photograph the Patch display** page by page | Slowest, but always works |
 

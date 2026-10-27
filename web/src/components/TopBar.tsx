@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, Eye, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
+import { Building2, Eye, FileUp, Wand2, Lock, LogIn, LogOut, Radio, Settings, ShieldAlert, Unlock, Users, Wrench, Zap, ZapOff } from 'lucide-react';
 import { MODE_INFO, type OperatingMode } from '@sanctuary/shared';
 import { logout, sendCommand, useApp } from '../state/store';
 import { ArmDialog } from './ArmDialog';
@@ -82,6 +82,11 @@ export function TopBar({ onOpenSettings, onOpenWizard }: { onOpenSettings(): voi
 
       <div className="spacer" />
 
+      {role === 'operator' && (
+        <Tip label="Bring in the patch, groups, cues, presets and submasters from your Eos show (offline file import; nothing is sent to Eos).">
+          <button className={`btn sm ${config?.eosShow ? '' : 'primary'}`} onClick={() => useApp.getState().setImportOpen(true)}><FileUp size={14} />Import Eos Show</button>
+        </Tip>
+      )}
       {role === 'operator' && !config?.settings.commissioning.monitorTest?.ok && (
         <Tip label="Identify the Eos version, check the network, test in Monitor mode, then one authorized single-channel test."><button className="btn sm primary" onClick={onOpenWizard}><Wand2 size={14} />Eos setup</button></Tip>
       )}

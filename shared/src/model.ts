@@ -1,4 +1,5 @@
 import type { ArchitecturalConfig } from './architecture';
+import type { CueTiming, EosShowReference } from './showImport';
 
 /**
  * Core data model for Sanctuary Light.
@@ -54,6 +55,10 @@ export interface Fixture {
   protected: boolean;
   stage: StagePosition;
   notes?: string;
+  /** Fixture type exactly as named in the imported Eos patch. */
+  eosType?: string;
+  /** Placed in a temporary grid by an import; cleared once moved on the stage. */
+  unplaced?: boolean;
 }
 
 export interface FixtureGroup {
@@ -116,7 +121,15 @@ export interface Look {
   volunteerVisible: boolean;
 }
 
-export interface CueEntry { cue: string; label: string; notes?: string }
+export interface CueEntry {
+  cue: string;
+  label: string;
+  notes?: string;
+  /** Timing as exported from Eos (text, not reinterpreted). */
+  timing?: CueTiming;
+  /** Came from an Eos show import. */
+  fromEos?: boolean;
+}
 
 export interface CueListConfig {
   list: number;
@@ -219,6 +232,8 @@ export interface AppConfig {
   stage: StageLayout;
   /** Documentation of the SceneStation/DMX topology. Never used to send anything. */
   architecture: ArchitecturalConfig;
+  /** Reference data from the last Eos show import (palettes/presets, source file). null = never imported. */
+  eosShow: EosShowReference | null;
 }
 
 export type OperatingMode = 'offline' | 'eos-monitor' | 'eos-live' | 'direct-dmx';

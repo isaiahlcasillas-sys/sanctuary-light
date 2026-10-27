@@ -9,7 +9,8 @@ These guides take Sanctuary Light from "works on a computer" to "ready for a **s
 | Step | Guide | Where | Time | Touches real lights? |
 |---|---|---|---|---|
 | 1 | [Install on the sanctuary Windows PC](INSTALL_WINDOWS.md) | Booth PC | 45 min | No |
-| 2 | [On-site information checklist](ONSITE_CHECKLIST.md) | Booth, PC, racks | 1–2 h | No (read and photograph only) |
+| 2 | [Import your Eos show](IMPORT_EOS_SHOW.md) and arrange the stage | Booth PC | 30–60 min | No (offline file import) |
+| 2b | [On-site information checklist](ONSITE_CHECKLIST.md) | Booth, PC, racks | 1–2 h | No (read and photograph only) |
 | 3 | [First-day testing: Simulation → Monitor → Live](FIRST_DAY_TESTING.md) | Booth, outside worship | 2 h | Only the final, authorized single-channel step |
 | 4 | [SceneStation / house-light worksheet](SCENESTATION_WORKSHEET.md) | Sanctuary, booth | 1–2 h | Observation only. Anything disruptive needs a qualified person and a scheduled window. |
 | 5 | [Sunday readiness](SUNDAY_READINESS.md) | Booth | 30 min | No |

@@ -16,6 +16,8 @@ import { Controller } from './controller';
 import { EOS_COMMAND_TABLE } from './engine/eosCommands';
 import { ConfigStore } from './store/configStore';
 import { exportCsv, importCsv, importJson } from './store/patchImport';
+import { MAX_IMPORT_BYTES } from './import';
+import { ShowImportService } from './import/service';
 import type { SectionKey } from './store/validate';
 
 // Production unless a developer says otherwise (npm start no longer sets it: cmd.exe can't).
@@ -122,6 +124,33 @@ app.post('/api/patch/import', operatorOnly, (req, res) => {
   const protectedChannels = new Set(cfg.fixtures.filter((f) => f.protected).map((f) => f.channel));
   const result = format === 'json' ? importJson(content, cfg.fixtures) : importCsv(content, cfg.profiles, cfg.fixtures, protectedChannels);
   res.json(result); // preview only — the browser applies it via PUT /api/config/fixtures
+});
+
+// ── Import Eos Show (offline, read-only file import; never contacts the console) ──
+const showImport = new ShowImportService(store, {
+  mode: () => controller.mode,
+  configChanged: (prev, next) => { broadcast({ t: 'config', config: next }); controller.onConfigChanged(prev, { quiet: true }); },
+  log: (level, message) => controller.log(level, message),
+});
+
+app.post('/api/import/eos/preview', operatorOnly, express.raw({ type: 'application/octet-stream', limit: MAX_IMPORT_BYTES + 1024 }), (req, res) => {
+  const bytes = req.body instanceof Buffer ? req.body : null;
+  if (!bytes) { res.status(400).json({ error: 'No file received' }); return; }
+  let name = 'show';
+  try { name = decodeURIComponent(req.header('x-file-name') ?? 'show').slice(0, 200); } catch { /* keep default */ }
+  res.json(showImport.preview(new Uint8Array(bytes), name));
+});
+
+app.post('/api/import/eos/apply', operatorOnly, (req, res) => {
+  if (req.body?.confirm !== true) { res.status(400).json({ error: 'Confirmation required' }); return; }
+  const result = showImport.apply(String(req.body?.token ?? ''), req.body?.options);
+  res.status(result.ok ? 200 : 409).json(result.ok ? result : { error: result.error });
+});
+
+app.post('/api/import/eos/undo', operatorOnly, (req, res) => {
+  if (req.body?.confirm !== true) { res.status(400).json({ error: 'Confirmation required' }); return; }
+  const result = showImport.undoLast();
+  res.status(result.ok ? 200 : 409).json(result.ok ? result : { error: result.error });
 });
 
 app.get('/api/patch/export', operatorOnly, (req, res) => {
