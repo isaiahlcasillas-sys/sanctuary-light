@@ -1,5 +1,5 @@
 /**
- * Step 4: worship looks. Assign existing Eos cues to look buttons, then review and approve
+ * Step 5: worship looks. Assign existing Eos cues to look buttons, then review and approve
  * each one before volunteers can use it. Importing a cue is never approval: a cue, preset,
  * macro or submaster can do things Sanctuary Light can't see (including house lights that
  * SceneStation also controls).
@@ -161,7 +161,7 @@ export function WorshipLooks({ onNext }: { onNext(): void }) {
       <div className="row step-foot">
         <span className="hint">{eosLooks.length ? `${eosLooks.filter((l) => l.approval).length} of ${eosLooks.length} Eos looks approved for volunteers.` : 'Make a look from a cue to start.'}</span>
         <span className="spacer" />
-        <button className="btn primary" onClick={onNext}>Verify with Eos<ChevronRight size={16} /></button>
+        <button className="btn primary" onClick={onNext}>Supervised testing<ChevronRight size={16} /></button>
       </div>
       <ApproveDialog item={approving} onClose={() => setApproving(null)} />
     </div>

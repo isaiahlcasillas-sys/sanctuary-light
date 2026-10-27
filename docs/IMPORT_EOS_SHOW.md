@@ -48,10 +48,25 @@ Do this from the show that is **already loaded** in Eos. Exporting only writes a
      - **Issues:** conflicts with your current setup, problems in the file (with line numbers), and everything that was *read but not interpreted*.
 5. Choose:
    - **What to import:** fixtures and patch, groups, cue lists and timing, submasters, presets and palettes, and looks from a cue list.
-   - **Merge** with your current setup (recommended), or **Replace** it.
+   - **Replace** for the **first** import of your real show (so nothing from the built-in samples is mixed in), then **Merge** for later imports.
    - When merging and both sides differ: **Use what's in Eos** or **Keep my Sanctuary Light changes**.
 6. Press **Import**. The done screen shows what changed and the name of the backup.
-7. Press **Start arranging my sanctuary** (next section).
+7. Press **Start arranging my sanctuary** (next section), or first read the import report below.
+
+### Read the import report
+
+**Setup → Import my Eos show** shows exactly what the import gave Sanctuary Light, in four lists:
+
+| List | What's in it |
+|---|---|
+| **Imported from the file** | Channels and labels, DMX addresses, fixture types, controls taken from parameters the show uses, groups, cue lists (numbers, labels, timing text), submaster labels, preset and palette names, each with a count. |
+| **Incomplete or not confirmed** | Channels with no fixture type or no DMX address, channels whose controls couldn't be confirmed (intensity only), groups that include unpatched channels, channels in no group, cues without labels. |
+| **Needs setting up here** | Placing fixtures on the stage plan, checking categories (especially house lights), confirming relays and utility channels, choosing volunteer groups, making and approving worship looks, comparing with the running show. |
+| **Never imported** | Cue, preset and submaster **contents** (levels, colors), effects, macros, magic sheets, where lights hang, and anything about SceneStation, the Gadget II or wireless DMX. |
+
+Nothing in the report is guessed: a count of 0 means the file didn't contain it. The report describes the **file**. Whether the file matches what Eos has loaded right now is a separate check: **Setup → Verify with Eos** (Monitor mode, read-only).
+
+Tick **"This file was exported from our sanctuary's Eos"** only for a genuine export of today's show. Sample and test files are fine for practice but aren't evidence.
 
 ## 3. Arrange your sanctuary
 

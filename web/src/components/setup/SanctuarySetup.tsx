@@ -1,7 +1,7 @@
 /**
  * Sanctuary Setup: the guided path from installation to supervised testing.
- *   Import My Eos Show → Review Fixtures → Arrange Sanctuary → Worship Looks →
- *   Verify with Eos → Supervised Testing
+ *   Import My Eos Show → Review Fixtures → Arrange Sanctuary → Verify with Eos →
+ *   Worship Looks → Supervised Testing
  * Nothing on these screens sends a lighting command. Verification reads from Eos only in
  * Monitor mode, and only when the operator asks.
  */
@@ -13,6 +13,7 @@ import { ArrangeStep } from './ArrangeStep';
 import { FirstConnection } from './FirstConnection';
 import { FixtureReview } from './FixtureReview';
 import { ImportStep } from './ImportStep';
+import { SceneStationNotice } from './SceneStationNotice';
 import { ShowVerification } from './ShowVerification';
 import { WorshipLooks } from './WorshipLooks';
 
@@ -20,8 +21,8 @@ const STEPS: { id: SetupStep; title: string; icon: ReactNode }[] = [
   { id: 'import', title: 'Import my Eos show', icon: <FileUp size={16} /> },
   { id: 'review', title: 'Review fixtures', icon: <ListChecks size={16} /> },
   { id: 'arrange', title: 'Arrange sanctuary', icon: <LayoutGrid size={16} /> },
-  { id: 'looks', title: 'Worship looks', icon: <Sparkles size={16} /> },
   { id: 'verify', title: 'Verify with Eos', icon: <ScanSearch size={16} /> },
+  { id: 'looks', title: 'Worship looks', icon: <Sparkles size={16} /> },
   { id: 'testing', title: 'Supervised testing', icon: <FlaskConical size={16} /> },
 ];
 
@@ -51,6 +52,8 @@ export function SanctuarySetup() {
           <strong>Sanctuary setup</strong>
           <span className="hint">From your Eos show to a supervised first test. Nothing here changes Eos.</span>
         </div>
+        <button className="btn ghost sm" onClick={() => useApp.getState().setWelcomeOpen(true)}>How this works</button>
+        <SceneStationNotice compact />
         {STEPS.map((s, i) => (
           <button key={s.id} className="setup-step" data-active={s.id === step} aria-current={s.id === step ? 'step' : undefined} onClick={() => go(s.id)}>
             <span className="setup-step-mark">{progress[s.id].done ? <CheckCircle2 size={18} color="var(--ok)" /> : <Circle size={18} />}</span>
@@ -64,9 +67,9 @@ export function SanctuarySetup() {
       <section className="setup-body" aria-label={STEPS[index]?.title}>
         {step === 'import' && <ImportStep onNext={() => go('review')} />}
         {step === 'review' && <FixtureReview onNext={() => go('arrange')} />}
-        {step === 'arrange' && <ArrangeStep onNext={() => go('looks')} />}
-        {step === 'looks' && <WorshipLooks onNext={() => go('verify')} />}
-        {step === 'verify' && <ShowVerification onNext={() => go('testing')} />}
+        {step === 'arrange' && <ArrangeStep onNext={() => go('verify')} />}
+        {step === 'verify' && <ShowVerification onNext={() => go('looks')} />}
+        {step === 'looks' && <WorshipLooks onNext={() => go('testing')} />}
         {step === 'testing' && <FirstConnection goTo={go} />}
       </section>
     </main>

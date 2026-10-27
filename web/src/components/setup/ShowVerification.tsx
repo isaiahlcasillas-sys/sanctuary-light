@@ -1,13 +1,14 @@
 /**
- * Step 5: Show Verification — "Does Sanctuary Light match what's currently loaded in Eos?"
+ * Step 4: Show Verification — "Does Sanctuary Light match what's currently loaded in Eos?"
  * Reads only in Monitor (or Live) mode, only when the operator presses Read from Eos, and only
  * with read-only /eos/get queries. Nothing is assumed to match because the import accepted it.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRight, Eye, FlaskConical, RefreshCw, ScanSearch, TriangleAlert } from 'lucide-react';
+import { ChevronRight, FlaskConical, RefreshCw, ScanSearch, TriangleAlert } from 'lucide-react';
 import type { CheckItem, CheckStatus, VerificationReport } from '@sanctuary/shared';
 import { api } from '../../lib/api';
 import { sendCommand, useApp } from '../../state/store';
+import { SamePcConnect } from './SamePcConnect';
 import { StepHeader } from './SanctuarySetup';
 
 const STATUS: Record<CheckStatus, { label: string; cls: string; tile: string }> = {
@@ -58,15 +59,11 @@ export function ShowVerification({ onNext }: { onNext(): void }) {
       </StepHeader>
 
       {!connected && (
-        <div className="card" data-tone="warn">
-          <strong>Connect in Monitor mode first.</strong>
-          <p className="hint">Monitor mode only listens: it can't change any light. {mode === 'offline' ? 'Sanctuary Light is in SIM (Offline Simulation), so it has no connection to Eos.' : status?.connection.detail}</p>
-          <div className="row wrap">
-            {mode === 'offline' && config.settings.connection.consoleIp && config.settings.connection.eosVersion
-              ? <button className="btn primary" onClick={() => void sendCommand({ kind: 'setMode', mode: 'eos-monitor' })}><Eye size={15} />Connect in Monitor (read-only)</button>
-              : mode === 'offline' && <button className="btn primary" onClick={() => useApp.getState().openWizard(1)}>Set up the connection (Eos Setup Wizard)</button>}
-          </div>
-        </div>
+        <>
+          <p className="hint">Monitor mode only listens: it can't change any light. {mode === 'offline' ? 'Sanctuary Light is in SIM (Offline Simulation), so it has no connection to Eos yet.' : status?.connection.detail}</p>
+          <SamePcConnect />
+          <p className="hint">Eos on another computer? Use the <button className="btn ghost sm" onClick={() => useApp.getState().openWizard(1)}>Eos Setup Wizard</button> instead.</p>
+        </>
       )}
 
       {report?.simulatedConsole && (
@@ -123,7 +120,7 @@ export function ShowVerification({ onNext }: { onNext(): void }) {
       <div className="row step-foot">
         <span className="hint">{last ? `Last complete check: ${new Date(last.at).toLocaleString()}${last.simulatedConsole ? ' (simulator)' : ''}.` : 'Never compared with a console.'} Differences are fixed by importing the current show again, or by editing Sanctuary Light. Eos is never changed from here.</span>
         <span className="spacer" />
-        <button className="btn primary" onClick={onNext}>Supervised testing<ChevronRight size={16} /></button>
+        <button className="btn primary" onClick={onNext}>Worship looks<ChevronRight size={16} /></button>
       </div>
     </div>
   );

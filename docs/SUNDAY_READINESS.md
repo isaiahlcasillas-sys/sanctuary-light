@@ -32,7 +32,7 @@ Sanctuary Light checks most of this for you: **Settings → Sunday readiness** s
 | ☐ | **Eos silent but still connected:** if Eos stops answering without dropping the connection (e.g. it freezes), Sanctuary Light drops and reconnects by itself after twice the stale time (20 s by default) | Automatic; automated tests cover it. Nothing is sent except read-only queries when reconnecting. |
 | ☐ | **App crash:** Task Manager → Details → `node.exe` → End task (Mac: `pkill -9 -f "server/src/index.ts"`) | Back within about 15 s, in **SIM**, not Live. Eos and the lights don't change. |
 | ☐ | **PC restart:** only after the SceneStation audit (restarting the shared PC stops Eos's DMX output, worksheet part D2), outside worship | Sanctuary Light comes back after sign-in in **SIM**; Eos must be reopened (or starts by itself if you set that up) |
-| ☐ | **Power cut:** (only if the building allows a test) | The PC powers on (BIOS setting) and signs in by itself (see [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) step 8), then Sanctuary Light starts in **SIM** |
+| ☐ | **Power cut:** only after the SceneStation audit, and only as part of a planned building power test with a qualified person (it stops Eos and everything after it) | The PC powers on (BIOS setting) and signs in by itself (see [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) step 8), then Sanctuary Light starts in **SIM** |
 | ☐ | **What LIVE does across a network blip** | LIVE stays armed, and **nothing is re-sent** when the connection returns: no commands are queued or replayed. Anything you pressed while disconnected was refused with an error message. |
 
 ## 4. Commissioning and configuration

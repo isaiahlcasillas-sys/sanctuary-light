@@ -444,3 +444,13 @@ label.field > span { font-weight: 600; letter-spacing: 0.02em; }
   .looks-grid-2, .arrange-grid { grid-template-columns: 1fr; }
   .arrange-tray { position: static; max-height: 300px; }
 }
+
+/* Import report */
+.import-report { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin: 8px 0 12px; }
+.report-section { border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 14px; background: var(--panel-2); }
+.report-section[data-tone="warn"] { border-color: color-mix(in srgb, var(--warn) 45%, var(--line-2)); }
+.report-section h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.report-section ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; line-height: 1.4; }
+.welcome-path { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 8px; }
+.welcome-path li { display: flex; gap: 10px; align-items: flex-start; }
+.welcome-path .wf-icon { margin-top: 2px; }

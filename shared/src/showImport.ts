@@ -154,7 +154,9 @@ export function defaultImportOptions(show: ParsedShow, cfg: AppConfig): ImportOp
   const lists = show.cueLists.map((l) => l.list);
   const looksFromList = lists.includes(cfg.settings.masterCueList) ? cfg.settings.masterCueList : lists[0] ?? null;
   return {
-    mode: 'merge',
+    // The first import of a real show replaces the built-in samples, so nothing sample-made
+    // gets mixed in; later imports merge with what the operator has set up since.
+    mode: cfg.eosShow == null ? 'replace' : 'merge',
     include: {
       fixtures: show.channels.length > 0, groups: show.groups.length > 0, cueLists: show.cueLists.length > 0,
       submasters: show.subs.length > 0, looks: looksFromList != null, palettes: show.palettes.length > 0,

@@ -3,6 +3,7 @@ import { ChevronRight, FileUp, ShieldCheck } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useApp } from '../../state/store';
 import { UndoImportButton } from '../import/UndoImportButton';
+import { ImportReportPanel } from './ImportReportPanel';
 import { StepHeader } from './SanctuarySetup';
 
 export function ImportStep({ onNext }: { onNext(): void }) {
@@ -48,6 +49,8 @@ export function ImportStep({ onNext }: { onNext(): void }) {
                 <span className="hint" style={{ display: 'block' }}>Sanctuary Light's automated tests use sample files. Only a genuine export (and later, Show Verification against the console) tells you anything about your real system.</span></span>
             </label>
           </div>
+          <h3 style={{ margin: '16px 0 6px' }}>What the import gave Sanctuary Light</h3>
+          <ImportReportPanel />
           <p className="hint"><ShieldCheck size={13} style={{ verticalAlign: -2 }} /> The imported data is Sanctuary Light's own copy. It's kept separate from the show loaded in Eos, which this app never changes. If Eos changes later, Show Verification will tell you.</p>
           <div className="row">
             <UndoImportButton className="btn ghost" fileName={show.fileName} />

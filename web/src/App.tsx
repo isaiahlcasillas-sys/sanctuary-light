@@ -14,6 +14,7 @@ import { ArchitecturalStatus } from './components/ArchitecturalStatus';
 import { SaveLookButton } from './components/SaveLookButton';
 import { EosImportWizard } from './components/import/EosImportWizard';
 import { SanctuarySetup } from './components/setup/SanctuarySetup';
+import { FirstLaunch } from './components/FirstLaunch';
 
 export function App() {
   const config = useApp((s) => s.config);
@@ -55,6 +56,7 @@ export function App() {
       {role === 'operator' && <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} initialTab={settingsTab} onOpenWizard={() => useApp.getState().openWizard(0)} />}
       {role === 'operator' && <SetupWizard open={wizardOpen} onOpenChange={(o) => (o ? useApp.getState().openWizard(useApp.getState().wizardStep) : useApp.getState().closeWizard())} />}
       {role === 'operator' && <EosImportWizard />}
+      {config && <FirstLaunch />}
       <Toasts />
     </div>
   );

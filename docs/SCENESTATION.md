@@ -4,6 +4,8 @@
 
 Primary source: *SceneStation User's Manual v3.0 (second edition)*, Interactive Technologies, Inc. (D0311), plus the *SceneStation 3 Getting Started* sheet (D0313B) and the wiring diagram D0316.
 
+> **Closing or disconnecting Sanctuary Light does not hand the lights back to SceneStation.** Sanctuary Light is a remote control for Eos; it never sends DMX itself. Eos (with the Gadget II and wireless DMX after it) keeps transmitting DMX whether Sanctuary Light is open, closed, crashed or in SIM. Per the manual (below), a SceneStation stays passive while it detects DMX input, so it only takes over when DMX **stops** on its line, and that depends on Eos and the devices in between, not on Sanctuary Light. To give the room back to the wall stations, follow your building's normal procedure in Eos.
+
 ## Models
 
 | Model | Notes (from manual and retail listings) |

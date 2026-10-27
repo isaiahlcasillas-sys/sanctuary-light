@@ -7,6 +7,7 @@ import {
   analyzeFailures, describeDmxRole, describeLossAction,
   type Confidence, type SceneStationRecord, type UpstreamDevice,
 } from '@sanctuary/shared';
+import { SceneStationNotice } from './setup/SceneStationNotice';
 import { useApp } from '../state/store';
 
 const CONFIDENCE: Record<Confidence, { cls: string; label: string }> = {
@@ -41,6 +42,7 @@ export function ArchitecturalStatus({ onEdit }: { onEdit?(): void }) {
         </div>
         {role === 'operator' && onEdit && <button className="btn" onClick={onEdit}><Pencil size={15} />Edit audit records</button>}
       </section>
+      <SceneStationNotice />
 
       <section className="panel">
         <div className="panel-head"><Info size={16} /><h2>For volunteers</h2></div>

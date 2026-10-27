@@ -36,6 +36,9 @@ interface AppState {
   setupStep: SetupStep;
   /** Eos Setup Wizard (connection/commissioning) */
   wizardOpen: boolean;
+  /** First-launch welcome (shown until dismissed on this computer). */
+  welcomeOpen: boolean;
+  setWelcomeOpen(open: boolean): void;
   wizardStep: number;
 
   setSetupStep(step: SetupStep): void;
@@ -91,6 +94,8 @@ export const useApp = create<AppState>((set, get) => ({
   importOpen: false,
   setupStep: (localStorageGet('sl-setup-step') as SetupStep) ?? 'import',
   wizardOpen: false,
+  welcomeOpen: localStorageGet('sl-welcome-done') == null,
+  setWelcomeOpen(open) { if (!open) localStorageSet('sl-welcome-done', '1'); set({ welcomeOpen: open }); },
   wizardStep: 0,
 
   setSetupStep(step) { localStorageSet('sl-setup-step', step); set({ setupStep: step }); },
