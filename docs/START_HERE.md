@@ -45,6 +45,6 @@ Background: [WINDOWS_DEPLOYMENT.md](WINDOWS_DEPLOYMENT.md) explains how the piec
 |---|---|
 | The app's program files | `C:\SanctuaryLight` |
 | Settings, patch, looks, PINs, backups | `%LOCALAPPDATA%\Sanctuary Light` (paste into File Explorer's address bar) |
-| Log file (for troubleshooting) | `%LOCALAPPDATA%\Sanctuary Light\logs\server.log` |
+| Log file (for troubleshooting) | `%LOCALAPPDATA%\Sanctuary Light\logs` (`server.log`, `server-errors.log`, `supervisor.log`) |
 | The icon volunteers click | **Sanctuary Light** on the desktop and in the Start menu |
 | Health check (changes nothing) | `C:\SanctuaryLight\deploy\windows\check-windows.ps1` |

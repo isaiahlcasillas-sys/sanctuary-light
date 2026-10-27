@@ -109,10 +109,15 @@ Section 'Backups and logs'
 $latest = Get-ChildItem (Join-Path $script:DataDir 'backups') -Filter 'daily-*' | Sort-Object Name | Select-Object -Last 1
 if ($latest) { Ok "Latest daily backup: $($latest.Name)" } else { Warn 'No daily backup yet' }
 $log = Join-Path $script:LogDir 'server.log'
+$sup = Join-Path $script:LogDir 'supervisor.log'
+if (Test-Path $sup) {
+  $restarts = @(Select-String -Path $sup -Pattern 'restarting in' | Where-Object { $_.Line -match '^(\S+)' -and ([datetime]$Matches[1]) -gt (Get-Date).AddDays(-7) })
+  if ($restarts.Count -gt 0) { Warn "The server crashed and was restarted $($restarts.Count) time(s) in the last 7 days - see $sup and server-errors.prev.log" } else { Ok 'No crashes in the last 7 days' }
+}
 if (Test-Path $log) {
   Info "Log: $log ($([int]((Get-Item $log).Length / 1KB)) KB)"
-  if ((Get-Item $log).Length -gt 50MB) { Warn 'The log is over 50 MB. It is trimmed when Sanctuary Light restarts (sign out and in, or restart the PC).' }
-  if (Get-Content $log -Tail 50 | Select-String -Pattern 'error|EADDRINUSE|exited with code' -Quiet) { Warn "Recent errors in the log - open $log" }
+  if ((Get-Item $log).Length -gt 50MB) { Warn 'The log is over 50 MB. It starts fresh when Sanctuary Light restarts (sign out and in, or restart the PC).' }
+  if (Get-Content $log -Tail 50 | Select-String -Pattern 'error|EADDRINUSE' -Quiet) { Warn "Recent errors in the log - open $log" }
 }
 
 Write-Host ''

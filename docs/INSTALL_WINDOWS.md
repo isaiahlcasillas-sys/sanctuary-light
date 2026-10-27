@@ -134,7 +134,7 @@ Next: [On-site information checklist](ONSITE_CHECKLIST.md).
 | Restore a backup | In the app: Settings → Backup. If the app won't start: `deploy\windows\restore-backup.ps1` (with no file name it lists the backups) |
 | Uninstall | `deploy\windows\uninstall.ps1` (keeps your settings; add `-RemoveData` to delete them too) |
 | Settings, patch, looks, PINs, backups | `%LOCALAPPDATA%\Sanctuary Light` (paste into File Explorer's address bar) |
-| Log file | `%LOCALAPPDATA%\Sanctuary Light\logs\server.log` |
+| Log file | `%LOCALAPPDATA%\Sanctuary Light\logs` (`server.log`, `server-errors.log`, `supervisor.log`) |
 
 ## Troubleshooting
 

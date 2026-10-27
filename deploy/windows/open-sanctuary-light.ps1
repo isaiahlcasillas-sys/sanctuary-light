@@ -13,7 +13,7 @@ if (-not (Get-Health $port)) {
 if (-not (Get-Health $port)) {
   Add-Type -AssemblyName PresentationFramework
   [void][System.Windows.MessageBox]::Show(
-    "Sanctuary Light did not start.`n`nEos keeps working normally - use Eos directly if needed.`nAsk the lighting lead, or check:`n$($script:LogDir)\server.log",
+    "Sanctuary Light did not start.`n`nEos keeps working normally - use Eos directly if needed.`nAsk the lighting lead, or check the logs in:`n$($script:LogDir)",
     'Sanctuary Light', 'OK', 'Error')
   exit 1
 }

@@ -116,10 +116,10 @@ for ($i = 0; $i -lt 30 -and -not $up; $i++) { Start-Sleep -Seconds 1; $up = Get-
 
 Write-Host ''
 if ($up) { Write-Host "Installed and running (mode: $($up.mode)). Sanctuary Light starts at every login and restarts if it crashes." -ForegroundColor Green }
-else { Warn "Installed, but the server did not answer yet. Check $($script:LogDir)\server.log" }
+else { Warn "Installed, but the server did not answer yet. Check $($script:LogDir)\supervisor.log and server-errors.log" }
 Write-Host "  Open:  the 'Sanctuary Light' icon on the desktop (or http://127.0.0.1:$Port)"
 Write-Host "  Data:  $($script:DataDir)"
-Write-Host "  Logs:  $($script:LogDir)\server.log"
+Write-Host "  Logs:  $($script:LogDir) (server.log, server-errors.log, supervisor.log)"
 Write-Host "  Check: powershell -ExecutionPolicy Bypass -File deploy\windows\check-windows.ps1"
 if ($Lan) {
   Write-Host ''

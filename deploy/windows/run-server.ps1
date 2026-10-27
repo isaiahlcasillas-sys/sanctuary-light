@@ -4,8 +4,8 @@
 #     automatically if this script stops, so a crash cannot leave the PC awake forever)
 #   - restarts the server after a crash (non-zero exit), waiting 10 s between attempts
 #   - stops on a clean exit (code 0: quit, or another copy is already using the port)
-#   - appends output to %LOCALAPPDATA%\Sanctuary Light\logs\server.log (rotated when over
-#     5 MB at each server start; Windows can't rename the file while the server writes it)
+#   - logs to %LOCALAPPDATA%\Sanctuary Light\logs: server.log / server-errors.log for the
+#     current run (the previous run's are kept as *.prev.log) and supervisor.log
 # The server always starts in Offline Simulation; nothing here can arm Live control, and
 # stopping or restarting never sends anything to Eos.
 param(
@@ -19,8 +19,13 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 New-Item -ItemType Directory -Force -Path $script:LogDir | Out-Null
-$log = Join-Path $script:LogDir 'server.log'
-function Write-Log([string]$msg) { Add-Content -Path $log -Value ("{0}  [supervisor] {1}" -f (Get-Date -Format s), $msg) }
+$log = Join-Path $script:LogDir 'server.log'           # server output (this run)
+$errLog = Join-Path $script:LogDir 'server-errors.log' # server errors (this run)
+$supLog = Join-Path $script:LogDir 'supervisor.log'    # starts, exits and restarts
+function Write-Log([string]$msg) {
+  if ((Test-Path $supLog) -and ((Get-Item $supLog).Length -gt 1MB)) { Move-Item -Force $supLog "$supLog.1" }
+  Add-Content -Path $supLog -Value ("{0}  {1}" -f (Get-Date -Format s), $msg)
+}
 
 Add-Type -Namespace SanctuaryLight -Name Power -MemberDefinition @'
 [DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);
@@ -39,15 +44,19 @@ $entry = Join-Path $script:RepoRoot 'server\src\index.ts'
 Set-Location $script:RepoRoot
 
 while ($true) {
-  if ((Test-Path $log) -and ((Get-Item $log).Length -gt 5MB)) { Move-Item -Force $log "$log.1" }
+  # Keep the previous run's output (the reason for a crash) next to this run's.
+  foreach ($f in $log, $errLog) { if (Test-Path $f) { Move-Item -Force $f ($f -replace '\.log$', '.prev.log') } }
   Write-Log "starting server (port $Port)"
-  # One node.exe process (tsx loaded with --import, not tsx's CLI, which adds a child process
-  # that could outlive a crashed parent and hold the port). cmd.exe does the redirection so
-  # Node's stderr is logged as plain text. Working directory is the repo, where tsx resolves.
-  & cmd.exe /d /c "`"`"$Node`" --import tsx `"$entry`" >> `"$log`" 2>&1`""
-  $code = $LASTEXITCODE
+  # One node.exe process: tsx is loaded with --import (tsx's CLI would add a child process that
+  # could outlive a crashed parent and hold the port). It resolves from the repo folder.
+  $p = Start-Process -FilePath $Node -ArgumentList @('--import', 'tsx', "`"$entry`"") -WorkingDirectory $script:RepoRoot `
+    -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError $errLog
+  $null = $p.Handle   # keeps ExitCode readable after the process ends (Windows PowerShell quirk)
+  $p.WaitForExit()
+  $code = $p.ExitCode
   if ($code -eq 0) { Write-Log 'server exited cleanly; supervisor stopping'; break }
-  Write-Log "server exited with code $code; restarting in $RestartDelaySeconds s"
+  $last = if (Test-Path $errLog) { (Get-Content $errLog -Tail 3) -join ' | ' } else { '' }
+  Write-Log "server exited with code $code; restarting in $RestartDelaySeconds s. $last"
   Start-Sleep -Seconds $RestartDelaySeconds
 }
 [void][SanctuaryLight.Power]::SetThreadExecutionState($ES_CONTINUOUS)

@@ -70,10 +70,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'install.ps1 -DryRun -Lan failed' }
           # 3. Start the real supervisor the way the scheduled task does.
           . .\deploy\windows\common.ps1
+          function Show-Logs { foreach ($f in 'supervisor.log', 'server.log', 'server-errors.log', 'server.prev.log', 'server-errors.prev.log') { $p = Join-Path $script:LogDir $f; if (Test-Path $p) { Write-Host "--- $f"; Get-Content $p -Tail 40 } } }
           $node = (Get-Command node.exe).Source
           $sup = Start-Process powershell.exe -PassThru -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'deploy\windows\run-server.ps1', '-Node', "`"$node`"", '-Port', '4799', '-RestartDelaySeconds', '2')
           $h = $null; for ($i = 0; $i -lt 60 -and -not $h; $i++) { Start-Sleep 1; $h = Get-Health 4799 }
-          if (-not $h) { Get-Content "$($script:LogDir)\server.log"; throw 'server did not start' }
+          if (-not $h) { Show-Logs; throw 'server did not start' }
           $h | ConvertTo-Json -Compress
           if ($h.mode -ne 'offline') { throw "expected offline, got $($h.mode)" }
           if ($h.platform -ne 'win32-x64') { throw "expected win32-x64, got $($h.platform)" }
@@ -86,11 +87,11 @@ jobs:
           Stop-Process -Id $before[0].ProcessId -Force
           Start-Sleep 3
           $h = $null; for ($i = 0; $i -lt 60 -and -not $h; $i++) { Start-Sleep 1; $h = Get-Health 4799 }
-          if (-not $h) { Get-Content "$($script:LogDir)\server.log"; throw 'server did not come back after a crash' }
+          if (-not $h) { Show-Logs; throw 'server did not come back after a crash' }
           $after = @(Get-SanctuaryServerProcesses)
           if ($after[0].ProcessId -eq $before[0].ProcessId) { throw 'server was not restarted' }
           if ($h.mode -ne 'offline') { throw "after restart expected offline, got $($h.mode)" }
-          Select-String -Path "$($script:LogDir)\server.log" -Pattern 'restarting in' | Select-Object -First 1
+          if (-not (Select-String -Path "$($script:LogDir)\supervisor.log" -Pattern 'restarting in' -Quiet)) { Show-Logs; throw 'supervisor did not log the restart' }
           # 5. The read-only check runs cleanly against the running server.
           powershell -NoProfile -ExecutionPolicy Bypass -File deploy\windows\check-windows.ps1
           if ($LASTEXITCODE -ne 0) { throw 'check-windows.ps1 failed' }
@@ -101,4 +102,4 @@ jobs:
           if (@(Get-SanctuaryServerProcesses).Count -or @(Get-RepoHelperProcesses).Count) { throw 'server or esbuild still running after Stop-SanctuaryServer' }
           if (@(Get-NetTCPConnection -State Listen -LocalPort 4799 -ErrorAction SilentlyContinue).Count) { throw 'port 4799 still in use' }
           if (-not (Get-ChildItem "$($script:DataDir)\backups" -Filter 'daily-*')) { throw 'no daily backup' }
-          Get-Content "$($script:LogDir)\server.log" -Tail 30
+          Show-Logs
